@@ -1,0 +1,29 @@
+[package]
+name = "job-pipeline"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "统一长任务状态机：幂等、lease、心跳、重试、取消与恢复"
+authors.workspace = true
+license.workspace = true
+
+[features]
+default = []
+# PostgreSQL 仓储；集成测试可启用 postgres-tests
+postgres = ["dep:sqlx"]
+postgres-tests = ["postgres"]
+
+[dependencies]
+async-trait = { workspace = true }
+chrono = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+uuid = { workspace = true }
+sqlx = { workspace = true, optional = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time", "sync", "test-util"] }
+tracing-subscriber = { workspace = true }

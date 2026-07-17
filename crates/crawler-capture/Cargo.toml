@@ -1,0 +1,31 @@
+[package]
+name = "crawler-capture"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Aero Signal 文章抓取：identity、正文抽取、图片分类、对象存储"
+
+[dependencies]
+async-trait = { workspace = true }
+chrono = { workspace = true }
+regex = "1"
+scraper = "0.21"
+ego-tree = "0.9"
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+url = "2"
+uuid = { workspace = true }
+rust-s3 = { workspace = true }
+reqwest = { workspace = true }
+image = { version = "0.25", default-features = false, features = ["gif", "jpeg", "png", "webp"] }
+futures = { workspace = true }
+chromiumoxide = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time"] }

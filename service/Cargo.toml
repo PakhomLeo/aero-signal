@@ -1,0 +1,51 @@
+[package]
+name = "signal-service"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+description = "Aero Signal 主服务（脚手架）"
+
+[[bin]]
+name = "signal-service"
+path = "src/main.rs"
+
+[[bin]]
+name = "signal-worker"
+path = "src/bin/signal_worker.rs"
+
+[dependencies]
+argon2 = { workspace = true }
+async-trait = { workspace = true }
+axum = { workspace = true }
+base64 = { workspace = true }
+chrono = { workspace = true }
+crawler-capture = { workspace = true }
+dotenvy = { workspace = true }
+job-pipeline = { workspace = true, features = ["postgres"] }
+platform-connectors = { workspace = true }
+provider-hub = { workspace = true }
+password-hash = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+server-core = { workspace = true }
+sha2 = { workspace = true }
+sqlx = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+url = "2"
+uuid = { workspace = true }
+redis = { workspace = true }
+
+[dev-dependencies]
+http-body-util = { workspace = true }
+tower = { workspace = true, features = ["util"] }
+job-pipeline = { workspace = true }
+serde_json = { workspace = true }
+server-core = { workspace = true }

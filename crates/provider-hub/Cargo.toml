@@ -1,0 +1,16 @@
+[package]
+name = "provider-hub"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+description = "Signal 裁剪版 provider-hub：OCR trait + FakeOcr"
+
+[dependencies]
+async-trait = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }

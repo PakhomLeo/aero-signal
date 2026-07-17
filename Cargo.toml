@@ -1,0 +1,62 @@
+[workspace]
+resolver = "2"
+members = [
+    "service",
+    "crates/server-core",
+    "crates/job-pipeline",
+    "crates/platform-connectors",
+    "crates/crawler-capture",
+    "crates/provider-hub",
+]
+
+[workspace.package]
+version = "0.0.1"
+edition = "2024"
+rust-version = "1.96"
+authors = ["Aero Signal"]
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+argon2 = { version = "0.5", features = ["std"] }
+async-trait = "0.1"
+axum = "0.8"
+base64 = "0.22"
+chrono = { version = "0.4", features = ["serde"] }
+dotenvy = "0.15"
+http = "1"
+http-body-util = "0.1"
+password-hash = "0.5"
+rand = "0.8"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+sqlx = { version = "0.8", default-features = false, features = [
+    "runtime-tokio",
+    "tls-rustls",
+    "postgres",
+    "chrono",
+    "uuid",
+    "json",
+    "migrate",
+] }
+thiserror = "2"
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "time", "sync"] }
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace", "cors"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+redis = { version = "0.27", features = ["tokio-comp", "connection-manager"] }
+reqwest = { version = "0.12", default-features = false, features = ["json", "cookies", "rustls-tls"] }
+rust-s3 = { version = "0.37", default-features = false, features = ["tokio-rustls-tls"] }
+futures = "0.3"
+chromiumoxide = { version = "0.7", default-features = false, features = ["tokio-runtime", "bytes"] }
+server-core = { path = "crates/server-core" }
+job-pipeline = { path = "crates/job-pipeline" }
+platform-connectors = { path = "crates/platform-connectors" }
+crawler-capture = { path = "crates/crawler-capture" }
+provider-hub = { path = "crates/provider-hub" }
+
+[profile.release]
+codegen-units = 1
+lto = "thin"

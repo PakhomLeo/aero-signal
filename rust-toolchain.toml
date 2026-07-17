@@ -1,0 +1,5 @@
+[toolchain]
+channel = "stable"
+profile = "default"
+targets = ["x86_64-pc-windows-msvc"]
+components = ["rustfmt", "clippy", "rust-analyzer"]
