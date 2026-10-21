@@ -70,15 +70,26 @@ pub struct MpAdminQrSession {
     pub proxy_url: Option<String>,
 }
 
+/// Default `User-Agent` for mp_admin protocol requests (unchanged historical value).
+pub const DEFAULT_MP_ADMIN_USER_AGENT: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
+     (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36";
+
+/// Environment variable that overrides the mp_admin `User-Agent`.
+pub const MP_ADMIN_USER_AGENT_ENV: &str = "SIGNAL_MP_ADMIN_USER_AGENT";
+
+/// Resolve the `User-Agent` header: a non-empty, header-safe override wins; otherwise the default.
+fn user_agent_header(override_value: Option<&str>) -> HeaderValue {
+    override_value
+        .map(str::trim)
+        .filter(|v| !v.is_empty())
+        .and_then(|v| HeaderValue::from_str(v).ok())
+        .unwrap_or_else(|| HeaderValue::from_static(DEFAULT_MP_ADMIN_USER_AGENT))
+}
+
 fn default_headers() -> HeaderMap {
     let mut headers = HeaderMap::new();
-    headers.insert(
-        USER_AGENT,
-        HeaderValue::from_static(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 \
-             (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
-        ),
-    );
+    let configured = std::env::var(MP_ADMIN_USER_AGENT_ENV).ok();
+    headers.insert(USER_AGENT, user_agent_header(configured.as_deref()));
     headers.insert(
         ACCEPT,
         HeaderValue::from_static(
@@ -853,6 +864,23 @@ pub async fn probe_credentials(creds: &MpAdminCredentials) -> ConnectorResult<()
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn user_agent_defaults_and_override() {
+        let default = HeaderValue::from_static(DEFAULT_MP_ADMIN_USER_AGENT);
+        assert_eq!(user_agent_header(None), default);
+        assert_eq!(user_agent_header(Some("   ")), default);
+        // Invalid header characters fall back to the default instead of failing requests.
+        assert_eq!(user_agent_header(Some("bad\nvalue")), default);
+        assert_eq!(
+            user_agent_header(Some(" SignalBot/1.0 ")),
+            HeaderValue::from_static("SignalBot/1.0")
+        );
+        assert_eq!(
+            DEFAULT_MP_ADMIN_USER_AGENT,
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
+        );
+    }
 
     #[test]
     fn sanitize_strips_token_query() {

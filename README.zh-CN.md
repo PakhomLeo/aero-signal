@@ -69,6 +69,34 @@ Copy-Item .env.example .env
 
 `.env.example` 中只有本地开发默认值。部署前必须更换数据库、对象存储和管理员 bootstrap 凭据，真实密码、Cookie、Token 与代理认证信息不得提交到 Git。
 
+#### 配置项
+
+全部通过环境变量配置（启动时会自动加载工作目录下的 `.env`）。以 `crates/server-core/src/config.rs`、`service/src/adapters/factory.rs` 和 [`docs/部署说明.md`](docs/部署说明.md) 为准。
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `SIGNAL_ENV` | `development` | `test` \| `development` \| `production`；production 在连接前检查全部硬依赖并禁止 Fake 回退 |
+| `SIGNAL_STORE` | 自动 | `memory` \| `postgres`；未设置时有 `DATABASE_URL` 则 `postgres`，否则 `memory` |
+| `DATABASE_URL` | – | PostgreSQL 连接串；`postgres` 模式必填 |
+| `SIGNAL_LISTEN_ADDR` | `127.0.0.1:8080` | HTTP 监听地址（也接受 `LISTEN_ADDR`） |
+| `SIGNAL_EMBED_WORKER` | `0` | 仅 memory：在 HTTP 进程内嵌 Worker |
+| `SIGNAL_SCHEDULER` | `1` | Worker 日调度（07:30 preflight / 08:00 plan）；`0` 关闭 |
+| `SIGNAL_WORKER_ID` | `signal-worker-<pid>` | 可选 Worker 标识 |
+| `SIGNAL_SECRET_STORE_PATH` | – | 文件 SecretStore 目录；postgres 与 production 模式必填（无默认值） |
+| `REDIS_URL` | – | 二维码 ticket 存储；postgres 与 production 模式必填 |
+| `REDIS_KEY_PREFIX` | `signal:` | 全部 Redis 键前缀 |
+| `S3_ENDPOINT` | – | S3/MinIO（path-style）；postgres 与 production 模式必填，memory 模式缺省时使用 Fake 对象存储 |
+| `S3_ACCESS_KEY` / `S3_SECRET_KEY` | – | 对象存储凭据；设置 `S3_ENDPOINT` 时必填 |
+| `S3_BUCKET` | `aero-signal-dev` | 资产 bucket |
+| `BROWSER_CDP_URL` | – | Chromium 兼容浏览器的 CDP 地址（懒加载渲染），如 `http://127.0.0.1:9222`；开发可选，生产必填 |
+| `SIGNAL_MP_ADMIN_PROTOCOL` | 关闭 | `1` / `true` / `yes` 表示 mp_admin 真实扫码登录与已发列表协议就绪；否则 mp_admin 显式 unsupported。非 production 环境始终注册 `fake` connector |
+| `SIGNAL_MP_ADMIN_USER_AGENT` | 内置桌面 Chrome 123 UA | mp_admin 协议请求的 `User-Agent`；留空或非法时回退到默认值 |
+| `SIGNAL_OCR_PROVIDER` | – | 目前只有 `fake`（非 production 可用）；production 在接入真实 provider 前拒绝启动 |
+| `SIGNAL_PRODUCT` | `signal` | `/healthz` 返回的产品名 |
+| `SIGNAL_BOOTSTRAP_USERNAME` / `SIGNAL_BOOTSTRAP_PASSWORD` | – | 两者均非空时，`signal-service` 启动时若尚无管理员则自动创建；勿提交真实值 |
+| `SIGNAL_BOOTSTRAP_TOKEN` | – | `POST /api/admin/auth/bootstrap` 所需初始化口令（请求体 `bootstrap_token`）；留空则禁用 HTTP bootstrap |
+| `RUST_LOG` | – | 日志过滤，如 `info,signal=debug` |
+
 ### 3. 初始化并运行
 
 ```powershell

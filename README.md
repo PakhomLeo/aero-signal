@@ -228,6 +228,7 @@ All settings are environment variables (a `.env` file in the working directory i
 | `S3_BUCKET` | `aero-signal-dev` | Asset bucket. |
 | `BROWSER_CDP_URL` | – | CDP endpoint of a Chromium-compatible browser for lazy-load rendering, e.g. `http://127.0.0.1:9222`. Optional in development, required in production. |
 | `SIGNAL_MP_ADMIN_PROTOCOL` | off | `1` / `true` / `yes` marks the real `mp_admin` QR-login and published-list protocol as ready; otherwise `mp_admin` reports itself as unsupported. The `fake` connector is registered in every non-production environment. |
+| `SIGNAL_MP_ADMIN_USER_AGENT` | built-in desktop Chrome 123 UA | `User-Agent` sent by `mp_admin` protocol requests. Empty or invalid header values fall back to the default (`DEFAULT_MP_ADMIN_USER_AGENT` in `crates/platform-connectors/src/mp_admin/protocol.rs`). |
 | `SIGNAL_OCR_PROVIDER` | – | Only `fake` exists today; set `fake` to enable fake OCR outside production. Production refuses to start (`config.ocr_provider_not_implemented`) until a real provider is added. |
 | `SIGNAL_PRODUCT` | `signal` | Product name reported by `/healthz`. |
 | `SIGNAL_BOOTSTRAP_USERNAME` / `SIGNAL_BOOTSTRAP_PASSWORD` | – | If both are set, `signal-service` creates the administrator on start-up when none exists. Never commit real values. |
