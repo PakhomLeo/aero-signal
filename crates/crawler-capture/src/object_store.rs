@@ -204,7 +204,7 @@ impl MinioObjectStore {
             .or_else(|_| std::env::var("SIGNAL_MINIO_BUCKET"))
             .unwrap_or_else(|_| "aero-signal-dev".into());
         let access = std::env::var("S3_ACCESS_KEY").unwrap_or_else(|_| "aero".into());
-        let secret = std::env::var("S3_SECRET_KEY").unwrap_or_else(|_| "aero_local_dev".into());
+        let secret = std::env::var("S3_SECRET_KEY").unwrap_or_else(|_| "change-me".into());
         if endpoint.trim().is_empty() {
             return None;
         }

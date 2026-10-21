@@ -10,8 +10,9 @@ $PgContainer = "aero-postgres"
 $MinioContainer = "aero-minio"
 $MinioAlias = "aero-local"
 $MinioEndpoint = "http://127.0.0.1:9000"
-$MinioAccess = "aero"
-$MinioSecret = "aero_local_dev"
+# MinIO credentials: taken from S3_ACCESS_KEY / S3_SECRET_KEY when set; "change-me" is only a placeholder.
+$MinioAccess = if ($env:S3_ACCESS_KEY) { $env:S3_ACCESS_KEY } else { "aero" }
+$MinioSecret = if ($env:S3_SECRET_KEY) { $env:S3_SECRET_KEY } else { "change-me" }
 $ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $PyBucketScript = Join-Path $ScriptDir "create-minio-bucket.py"
 
@@ -42,7 +43,7 @@ Write-Host "==> Ensuring MinIO bucket $Bucket exists..."
 $minioRunning = podman ps --format "{{.Names}}" | Where-Object { $_ -eq $MinioContainer }
 if (-not $minioRunning) {
     Write-Warning "Container $MinioContainer is not running; skip bucket creation."
-    Write-Host "    Open http://127.0.0.1:9001 , login aero / aero_local_dev , create bucket $Bucket."
+    Write-Host "    Open http://127.0.0.1:9001 , login with your MinIO credentials (S3_ACCESS_KEY / S3_SECRET_KEY) , create bucket $Bucket."
 } else {
     $mcAvailable = Get-Command mc -ErrorAction SilentlyContinue
     $created = $false
@@ -109,11 +110,11 @@ if (-not $minioRunning) {
     if (-not $created) {
         Write-Warning "Could not auto-create MinIO bucket (mc/aws/Python unavailable)."
         Write-Host "    Open http://127.0.0.1:9001"
-        Write-Host "    Login: aero / aero_local_dev"
+        Write-Host "    Login: $MinioAccess / <S3_SECRET_KEY>"
         Write-Host "    Create bucket: $Bucket"
         Write-Host "    Or install MinIO Client (mc) and re-run this script."
     }
 }
 
 Write-Host "==> Done. DATABASE_URL example:"
-Write-Host "    postgres://aero:aero_local_dev@127.0.0.1:5432/$DbName"
+Write-Host "    postgres://aero:<your-password>@127.0.0.1:5432/$DbName"

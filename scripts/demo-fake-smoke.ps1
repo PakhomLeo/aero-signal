@@ -5,7 +5,7 @@ $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot\..
 
 if (-not $env:DATABASE_URL) {
-    $env:DATABASE_URL = "postgres://aero:aero_local_dev@127.0.0.1:5432/aero_signal_dev"
+    $env:DATABASE_URL = "postgres://aero:change-me@127.0.0.1:5432/aero_signal_dev"
 }
 
 Write-Host "== sqlx migrate run =="
