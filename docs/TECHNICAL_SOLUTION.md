@@ -115,7 +115,7 @@ service/src/
 
 ## 3. 二维码登录技术流程
 
-实现借鉴 `reference-projects/Just-We/app/services/qr_login_service.py` 与 `qr_providers.py` 的会话形态，不复制其中可能变化的平台请求细节。
+实现借鉴常见二维码登录服务的会话形态（服务层 + 可替换 QR provider），不复制其中可能变化的平台请求细节。
 
 ```text
 POST /api/admin/collector-accounts/qr-sessions
@@ -243,7 +243,7 @@ GET /api/service-health?date=YYYY-MM-DD
 | --- | --- | --- |
 | connector 能力不稳定 | `mp_admin` 或 `weread` 的可用能力可能随平台变化失效，导致计划大量跳过或误判为空抓 | connector registry 必须版本化 capability；preflight 保存 probe 证据和 reason_code；每个 connector 有 contract fixture 和灰度开关；未通过 probe 的账号只进入 `needs_action`，不参与计划 |
 | 文章 DOM 与懒加载规则变化 | 正文抽取、图片筛选或 OCR block 锚点可能因页面结构变化而错位 | `ArticleExtractor` 按多策略实现：静态解析、懒加载属性扫描、browser-runtime 渲染兜底；保留 extractor version、raw debug snapshot、image decision；新增 DOM fixture 回归集 |
-| 下游增量消费漏事件 | 编辑、重抓、图片变化、撤回若只更新文章表，Paddock 可能无法感知 | 引入 `article_change_events` + delivery outbox；所有影响对外结果的事务必须同时写 revision/change/outbox；`/api/articles/since` 以单调 sequence 和幂等 event_id 返回 |
+| 下游增量消费漏事件 | 编辑、重抓、图片变化、撤回若只更新文章表，下游消费方可能无法感知 | 引入 `article_change_events` + delivery outbox；所有影响对外结果的事务必须同时写 revision/change/outbox；`/api/articles/since` 以单调 sequence 和幂等 event_id 返回 |
 | 每日计划与手工操作冲突 | 管理员在 08:00 后改等级、暂停或重建计划，可能与已创建 job 互相覆盖 | daily plan 使用不可变计划行；重建只影响未开始任务；source 规则变更写新 heartbeat event；job 开始前二次读取 source 状态，暂停或 L4 则安全跳过 |
 | 二维码与凭据泄漏 | ticket、二维码 URL、临时 cookie、storage_state 若进入日志或数据库会形成高风险泄漏 | QR state 只存 Redis/secret store；tracing 增加敏感字段 redact layer；集成测试扫描日志和 DB fixture，禁止出现 cookie、token、二维码原始 URL、proxy password |
 | 代理/出口语义被误用 | 固定出口和动态出口若被混用，可能破坏登录态或被误认为自动规避限制 | `EgressResolver` 以用途枚举校验 `login/discover/article_detail/asset_download`；数据库 `allowed_purposes` 加约束；平台限制错误不触发动态出口轮换 |

@@ -1,6 +1,6 @@
 # OpenAPI 与消费 API 契约冻结说明
 
-面向 Paddock / 内部服务对接。首期**不以自动生成 OpenAPI 为硬门槛**；以本仓库已实现路由与集成测试为契约源。
+面向下游消费服务对接。首期**不以自动生成 OpenAPI 为硬门槛**；以本仓库已实现路由与集成测试为契约源。
 
 ## 冻结范围（消费 API）
 
@@ -33,6 +33,6 @@
 
 1. 在 `signal-service` 为消费路由增加 OpenAPI 注解或手写 `openapi.yaml`；
 2. 将生成物提交至 `docs/api/openapi-delivery.yaml` 并在发版 PR 中 diff；
-3. **冻结规则**：破坏性变更（删字段、改 cursor 语义、放宽脱敏）必须升 `schema_version` 并通知 Paddock。
+3. **冻结规则**：破坏性变更（删字段、改 cursor 语义、放宽脱敏）必须升 `schema_version` 并通知下游消费方。
 
 在生成流水线落地前，以本文件 + 集成测试为权威。

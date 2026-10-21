@@ -128,8 +128,7 @@ cargo test -p signal-service --test article_capture
 
 参考：
 
-- `reference-projects/Just-We/app/services/fetch_pipeline_service.py`
-- `reference-projects/Just-We/app/services/fetcher_service.py`
+- 参考实现中的抓取流水线与 fetcher 服务（候选元数据透传方式）。
 
 定向测试：
 
@@ -200,7 +199,7 @@ source + biz + mid + idx
 
 参考：
 
-- Just-We 的批内 URL set 和数据库过滤逻辑。
+- 参考实现中的批内 URL set 和数据库过滤逻辑。
 - wewe-wechat-archiver 的 URL 索引逻辑。
 - 最终实现必须保留 Signal 的强身份和幂等 Job，不能退回仅 URL 去重。
 
@@ -307,7 +306,7 @@ cargo check -p signal-service
 
 ### Loop 4.1：MP Admin 分页协议
 
-移植 Just-We 的 `begin + count + can_msg_continue` 处理逻辑：
+参考常见实现的 `begin + count + can_msg_continue` 处理逻辑：
 
 ```text
 读取 cursor
@@ -357,7 +356,7 @@ cargo check -p signal-service
 - 每页幂等。
 - 已有文章停止或跳过策略。
 
-借鉴 WeWe 的日期扫描和 Just-We 的分页字段，但使用 Signal 的持久 Job，不复制内存任务实现。
+借鉴参考实现的日期扫描和分页字段，但使用 Signal 的持久 Job，不复制内存任务实现。
 
 ---
 
@@ -365,7 +364,7 @@ cargo check -p signal-service
 
 ### Loop 5.1：DOM 清洗
 
-移植 Just-We 的 allowlist 思路：
+采用 allowlist 思路：
 
 - 删除 script、style、广告和确定的非正文节点。
 - 处理 `data-src`、`data-original` 等懒加载图片。
@@ -400,7 +399,7 @@ cargo check -p signal-service
 
 参考：
 
-- Just-We 的富文本白名单。
+- 参考实现中的富文本白名单。
 - wewe-wechat-archiver 的 markdownify 和代码块占位。
 - Signal 现有 OCR anchor、图片决策和 ContentBlock 必须继续保留。
 
@@ -449,7 +448,7 @@ stored
 - 重试成功后新增 revision/change event/outbox。
 - 资源失败不能静默吞掉。
 
-参考项目只提供“单图失败后继续保存”的行为参考；不得照搬 Just-We 静默返回 `None` 的错误处理。
+参考项目只提供“单图失败后继续保存”的行为参考；不得照搬参考实现中静默返回 `None` 的错误处理。
 
 测试：
 
