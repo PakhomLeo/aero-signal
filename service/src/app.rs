@@ -296,8 +296,8 @@ fn assemble(
             clock.clone(),
             adapters.object_store.clone(),
         );
-        let svc = if let Some(cdp) = config.cloakbrowser_cdp_url.as_deref() {
-            tracing::info!(url = %cdp, "ArticleCapture 接入 CloakBrowser CDP");
+        let svc = if let Some(cdp) = config.browser_cdp_url.as_deref() {
+            tracing::info!(url = %cdp, "ArticleCapture 接入 Chromium CDP");
             svc.with_browser(Arc::new(CdpBrowser::new(cdp)))
         } else {
             svc

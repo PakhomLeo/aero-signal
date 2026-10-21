@@ -226,7 +226,7 @@ All settings are environment variables (a `.env` file in the working directory i
 | `S3_ENDPOINT` | – | S3/MinIO endpoint (path-style). Required in PostgreSQL and production modes; without it, memory mode uses a fake object store. |
 | `S3_ACCESS_KEY` / `S3_SECRET_KEY` | – | Object storage credentials; required when `S3_ENDPOINT` is set. |
 | `S3_BUCKET` | `aero-signal-dev` | Asset bucket. |
-| `CLOAKBROWSER_CDP_URL` | – | CDP endpoint of a Chromium-compatible browser for lazy-load rendering, e.g. `http://127.0.0.1:9222`. Optional in development, required in production. |
+| `BROWSER_CDP_URL` | – | CDP endpoint of a Chromium-compatible browser for lazy-load rendering, e.g. `http://127.0.0.1:9222`. Optional in development, required in production. |
 | `SIGNAL_MP_ADMIN_PROTOCOL` | off | `1` / `true` / `yes` marks the real `mp_admin` QR-login and published-list protocol as ready; otherwise `mp_admin` reports itself as unsupported. The `fake` connector is registered in every non-production environment. |
 | `SIGNAL_OCR_PROVIDER` | – | Only `fake` exists today; set `fake` to enable fake OCR outside production. Production refuses to start (`config.ocr_provider_not_implemented`) until a real provider is added. |
 | `SIGNAL_PRODUCT` | `signal` | Product name reported by `/healthz`. |

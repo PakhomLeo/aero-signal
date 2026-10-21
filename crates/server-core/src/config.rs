@@ -97,8 +97,8 @@ pub struct ServiceConfig {
     pub s3_bucket: String,
     /// 密钥文件目录（postgres 默认 `./data/secrets`）。
     pub secret_store_path: Option<String>,
-    /// CloakBrowser CDP（后续浏览器抓取接入）。
-    pub cloakbrowser_cdp_url: Option<String>,
+    /// Chromium CDP（后续浏览器抓取接入）。
+    pub browser_cdp_url: Option<String>,
     /// OCR provider 名称。R05 接入真实 provider 前，production 会拒绝启动。
     pub ocr_provider: Option<String>,
     /// mp_admin 真实协议开关。
@@ -136,8 +136,8 @@ impl fmt::Debug for ServiceConfig {
             .field("s3_bucket", &self.s3_bucket)
             .field("secret_store_path", &self.secret_store_path)
             .field(
-                "cloakbrowser_cdp_url",
-                &self.cloakbrowser_cdp_url.as_ref().map(|_| "[REDACTED]"),
+                "browser_cdp_url",
+                &self.browser_cdp_url.as_ref().map(|_| "[REDACTED]"),
             )
             .field("ocr_provider", &self.ocr_provider)
             .field("mp_admin_protocol", &self.mp_admin_protocol)
@@ -213,7 +213,7 @@ impl ServiceConfig {
             s3_secret_key: env_nonempty("S3_SECRET_KEY"),
             s3_bucket: env::var("S3_BUCKET").unwrap_or_else(|_| "aero-signal-dev".into()),
             secret_store_path: env_nonempty("SIGNAL_SECRET_STORE_PATH"),
-            cloakbrowser_cdp_url: env_nonempty("CLOAKBROWSER_CDP_URL"),
+            browser_cdp_url: env_nonempty("BROWSER_CDP_URL"),
             ocr_provider: env_nonempty("SIGNAL_OCR_PROVIDER"),
             mp_admin_protocol: env_bool("SIGNAL_MP_ADMIN_PROTOCOL", false),
         };
@@ -265,9 +265,9 @@ impl ServiceConfig {
             ));
         }
         require(
-            &self.cloakbrowser_cdp_url,
-            "config.cloakbrowser_required",
-            "CLOAKBROWSER_CDP_URL",
+            &self.browser_cdp_url,
+            "config.browser_cdp_required",
+            "BROWSER_CDP_URL",
         )?;
         if !self.mp_admin_protocol {
             return Err(AppError::new(
@@ -305,7 +305,7 @@ impl ServiceConfig {
             s3_secret_key: None,
             s3_bucket: "aero-signal-dev".into(),
             secret_store_path: None,
-            cloakbrowser_cdp_url: None,
+            browser_cdp_url: None,
             ocr_provider: Some("fake".into()),
             mp_admin_protocol: false,
         }
@@ -329,7 +329,7 @@ impl ServiceConfig {
             s3_secret_key: None,
             s3_bucket: "aero-signal-dev".into(),
             secret_store_path: None,
-            cloakbrowser_cdp_url: None,
+            browser_cdp_url: None,
             ocr_provider: Some("fake".into()),
             mp_admin_protocol: false,
         }
@@ -372,7 +372,7 @@ mod tests {
         cfg.s3_access_key = Some("access".into());
         cfg.s3_secret_key = Some("secret".into());
         cfg.s3_bucket = "signal".into();
-        cfg.cloakbrowser_cdp_url = Some("http://browser.invalid".into());
+        cfg.browser_cdp_url = Some("http://browser.invalid".into());
         cfg.mp_admin_protocol = true;
         cfg.ocr_provider = Some("external".into());
         cfg
@@ -400,9 +400,7 @@ mod tests {
             ("config.s3_endpoint_required", |c| c.s3_endpoint = None),
             ("config.s3_access_key_required", |c| c.s3_access_key = None),
             ("config.s3_secret_key_required", |c| c.s3_secret_key = None),
-            ("config.cloakbrowser_required", |c| {
-                c.cloakbrowser_cdp_url = None
-            }),
+            ("config.browser_cdp_required", |c| c.browser_cdp_url = None),
             ("config.connector_required", |c| c.mp_admin_protocol = false),
             ("config.ocr_provider_required", |c| c.ocr_provider = None),
         ];

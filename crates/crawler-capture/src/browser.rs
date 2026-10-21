@@ -1,4 +1,4 @@
-//! 浏览器懒加载兜底（U09-06）：trait + FakeBrowser 桩 + CloakBrowser CDP。
+//! 浏览器懒加载兜底（U09-06）：trait + FakeBrowser 桩 + Chromium CDP。
 
 use async_trait::async_trait;
 use chromiumoxide::browser::Browser;
@@ -45,7 +45,7 @@ pub struct DomImage {
     pub natural_height: Option<u32>,
 }
 
-/// 浏览器运行时抽象（真实实现可接 CloakBrowser CDP :9222）。
+/// 浏览器运行时抽象（真实实现可接 Chromium CDP :9222）。
 #[async_trait]
 pub trait BrowserRuntime: Send + Sync {
     async fn render_for_lazy_images(
@@ -136,7 +136,7 @@ impl BrowserRuntime for FakeBrowser {
     }
 }
 
-/// CloakBrowser / Chrome CDP：连接已有浏览器实例抓取页面 HTML。
+/// Chromium / Chrome CDP：连接已有浏览器实例抓取页面 HTML。
 #[derive(Clone)]
 pub struct CdpBrowser {
     cdp_base: String,
