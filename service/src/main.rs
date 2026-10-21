@@ -37,6 +37,10 @@ async fn main() {
         eprintln!("装配失败: {err}");
         std::process::exit(1);
     });
+    if let Err(err) = handles.admin.try_bootstrap_from_env().await {
+        eprintln!("管理员自动 bootstrap 失败: {} ({})", err.message, err.code);
+        std::process::exit(1);
+    }
     maybe_embed_worker(&handles);
     let app = build_http_router(&handles);
 
@@ -50,7 +54,9 @@ async fn main() {
     tracing::info!(%local, "signal-service 已监听；GET /healthz 可用");
     println!("signal-service listening on {local}");
     println!("store_mode={}", config.store_mode.as_str());
-    println!("bootstrap: POST http://{local}/api/admin/auth/bootstrap");
+    println!(
+        "bootstrap: POST http://{local}/api/admin/auth/bootstrap (requires SIGNAL_BOOTSTRAP_TOKEN)"
+    );
 
     axum::serve(listener, app).await.expect("HTTP 服务异常退出");
 }

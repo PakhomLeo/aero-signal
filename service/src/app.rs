@@ -232,13 +232,16 @@ fn assemble(
     let connectors = Arc::new(registry_for_environment(config.environment.allows_fake()));
     let audit_writer = AuditWriter::new(audit_repo.clone());
 
-    let admin = Arc::new(AdministratorService::new(
-        admin_repo,
-        settings_repo.clone(),
-        audit_writer.clone(),
-        clock.clone(),
-        Duration::from_secs(12 * 60 * 60),
-    ));
+    let admin = Arc::new(
+        AdministratorService::new(
+            admin_repo,
+            settings_repo.clone(),
+            audit_writer.clone(),
+            clock.clone(),
+            Duration::from_secs(12 * 60 * 60),
+        )
+        .with_bootstrap_token(AdministratorService::bootstrap_token_from_env()),
+    );
     let egress = Arc::new(EgressService::new(
         egress_repo.clone(),
         secrets.clone(),

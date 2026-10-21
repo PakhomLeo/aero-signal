@@ -206,11 +206,11 @@ enum HeartbeatOutcome { NewArticle, EmptySuccess, TechnicalFailure, AccessBlocke
 
 代码逻辑：
 
-1. bootstrap 从部署 secret 读取初始账号密码，事务内插入唯一行；若已存在则拒绝重复 bootstrap。
+1. bootstrap 从部署 secret 读取初始账号密码（`signal-service` 启动时读取 `SIGNAL_BOOTSTRAP_USERNAME/PASSWORD`），事务内插入唯一行；若已存在则拒绝重复 bootstrap。HTTP bootstrap 必须携带与 `SIGNAL_BOOTSTRAP_TOKEN` 一致的 `bootstrap_token`（常量时间比较），未配置口令时禁用。
 2. 登录时按 username 取唯一管理员，校验密码，若 `must_change_password=true` 则只允许进入改密流程。
 3. 改密码必须验证当前密码，写新 hash，更新 `password_changed_at`，撤销除当前会话外的所有 session，写审计。
 
-测试重点：重复 bootstrap、弱密码拒绝、改密撤销会话、session hash 不回显、审计不记录明文。
+测试重点：重复 bootstrap、未配置/错误初始化口令、弱密码拒绝、改密撤销会话、session hash 不回显、审计不记录明文。
 
 ### 12.2 collector-login
 

@@ -2,6 +2,8 @@
 export const ERROR_LABELS: Record<string, string> = {
   'admin.not_bootstrapped': '管理员尚未初始化',
   'admin.already_bootstrapped': '系统已初始化，不能重复 bootstrap',
+  'admin.bootstrap_disabled': '未配置初始化口令，HTTP 初始化已禁用',
+  'admin.bootstrap_token_invalid': '初始化口令无效',
   'admin.weak_password': '密码不符合安全策略',
   'admin.invalid_username': '用户名无效',
   'admin.must_change_password': '请先修改初始密码',

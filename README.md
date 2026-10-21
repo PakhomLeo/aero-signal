@@ -182,15 +182,20 @@ cargo run -p signal-service --bin signal-worker
 
 In PostgreSQL mode, `SIGNAL_EMBED_WORKER` is ignored, so the separate worker is required.
 
-**Create the administrator** (once, before first login). The password must be 10–128 characters and contain letters and digits:
+**Create the administrator** (once). The password must be 10–128 characters and contain letters and digits. There are two options:
 
-```bash
-curl -X POST http://127.0.0.1:8080/api/admin/auth/bootstrap \
-  -H 'content-type: application/json' \
-  -d '{"username":"admin","password":"<a strong password>"}'
-```
+- *Automatic (recommended):* set `SIGNAL_BOOTSTRAP_USERNAME` and `SIGNAL_BOOTSTRAP_PASSWORD` before starting `signal-service`. On start-up it creates the administrator if none exists, and skips this step if one already exists. The worker does not bootstrap.
+- *Over HTTP:* set `SIGNAL_BOOTSTRAP_TOKEN` to a long random value, restart `signal-service`, then call:
 
-The first login enforces a password change. Do this on a private network: the bootstrap endpoint is unauthenticated until an administrator exists.
+  ```bash
+  curl -X POST http://127.0.0.1:8080/api/admin/auth/bootstrap \
+    -H 'content-type: application/json' \
+    -d '{"username":"admin","password":"<a strong password>","bootstrap_token":"<SIGNAL_BOOTSTRAP_TOKEN>"}'
+  ```
+
+  The endpoint compares the token in constant time. It returns `403 admin.bootstrap_disabled` when no token is configured and `403 admin.bootstrap_token_invalid` when the token is wrong. Once an administrator exists, every call returns `409 admin.already_bootstrapped`.
+
+The first login enforces a password change. Remove the bootstrap variables after initialisation.
 
 ### 4. Frontend
 
@@ -225,10 +230,9 @@ All settings are environment variables (a `.env` file in the working directory i
 | `SIGNAL_MP_ADMIN_PROTOCOL` | off | `1` / `true` / `yes` marks the real `mp_admin` QR-login and published-list protocol as ready; otherwise `mp_admin` reports itself as unsupported. The `fake` connector is registered in every non-production environment. |
 | `SIGNAL_OCR_PROVIDER` | – | Only `fake` exists today; set `fake` to enable fake OCR outside production. Production refuses to start (`config.ocr_provider_not_implemented`) until a real provider is added. |
 | `SIGNAL_PRODUCT` | `signal` | Product name reported by `/healthz`. |
-| `SIGNAL_BOOTSTRAP_USERNAME` / `SIGNAL_BOOTSTRAP_PASSWORD` | – | Initial administrator credentials (see note below). Never commit real values. |
+| `SIGNAL_BOOTSTRAP_USERNAME` / `SIGNAL_BOOTSTRAP_PASSWORD` | – | If both are set, `signal-service` creates the administrator on start-up when none exists. Never commit real values. |
+| `SIGNAL_BOOTSTRAP_TOKEN` | – | Initialisation token required by `POST /api/admin/auth/bootstrap` (`bootstrap_token` field). Empty disables HTTP bootstrap. |
 | `RUST_LOG` | – | Tracing filter, e.g. `info,signal=debug`. |
-
-> **Note on bootstrap variables.** `AdministratorService::try_bootstrap_from_env` reads `SIGNAL_BOOTSTRAP_*`, but no binary calls it yet. Use `POST /api/admin/auth/bootstrap` as shown above.
 
 Scheduling uses the timezone in `system_settings` (default `Asia/Shanghai`). Run the host or container in the same timezone, or set `TZ=Asia/Shanghai`.
 
@@ -309,7 +313,6 @@ These rules are part of the product's design, not optional settings. Contributio
 - [ ] Keep `weread` unsupported until authorisation, protocol freeze and acceptance.
 - [ ] Deployment-level setup and acceptance for the production SecretStore, proxy provider, object storage and browser runtime.
 - [ ] Optional machine-readable OpenAPI for the delivery API (`docs/api/openapi-delivery.yaml`).
-- [ ] Wire up environment-based administrator bootstrap (`SIGNAL_BOOTSTRAP_*`).
 - [ ] Add regression tests with redacted fixtures as platform DOM/protocols change.
 
 The system is deliberately single-tenant with a single administrator. Multi-user auditing would be a separate product upgrade, not hidden roles.

@@ -6,6 +6,8 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use chrono::{DateTime, Utc};
 use serde_json::json;
 use server_core::{AppError, Clock};
+use sha2::{Digest, Sha256};
+use subtle::ConstantTimeEq;
 use uuid::Uuid;
 
 use crate::audit::AuditWriter;
@@ -161,6 +163,18 @@ pub struct AdministratorService {
     hasher: PasswordHasher,
     sessions: SessionService,
     clock: Arc<dyn Clock>,
+    /// HTTP bootstrap 所需的初始化口令（来自 `SIGNAL_BOOTSTRAP_TOKEN`）；None 表示禁用 HTTP bootstrap。
+    bootstrap_token: Option<String>,
+}
+
+/// 环境变量：HTTP bootstrap 初始化口令。
+pub const BOOTSTRAP_TOKEN_ENV: &str = "SIGNAL_BOOTSTRAP_TOKEN";
+
+/// 常量时间比较两个口令：先各自做 SHA-256，使比较长度固定，再用 `subtle` 比较摘要。
+fn constant_time_token_eq(provided: &str, expected: &str) -> bool {
+    let a = Sha256::digest(provided.as_bytes());
+    let b = Sha256::digest(expected.as_bytes());
+    bool::from(a.as_slice().ct_eq(b.as_slice()))
 }
 
 impl AdministratorService {
@@ -179,7 +193,21 @@ impl AdministratorService {
             hasher: PasswordHasher::default(),
             sessions,
             clock,
+            bootstrap_token: None,
         }
+    }
+
+    /// 配置 HTTP bootstrap 初始化口令；空白字符串视为未配置。
+    pub fn with_bootstrap_token(mut self, token: Option<String>) -> Self {
+        self.bootstrap_token = token.filter(|t| !t.trim().is_empty());
+        self
+    }
+
+    /// 从 `SIGNAL_BOOTSTRAP_TOKEN` 读取初始化口令；缺失或为空返回 None。
+    pub fn bootstrap_token_from_env() -> Option<String> {
+        std::env::var(BOOTSTRAP_TOKEN_ENV)
+            .ok()
+            .filter(|t| !t.trim().is_empty())
     }
 
     pub fn sessions(&self) -> &SessionService {
@@ -202,7 +230,16 @@ impl AdministratorService {
 
     /// 启动时自动 bootstrap（若环境变量齐全且尚未存在管理员）。
     pub async fn try_bootstrap_from_env(&self) -> Result<Option<BootstrapResult>, AppError> {
-        let Some(creds) = Self::bootstrap_credentials_from_env() else {
+        self.try_bootstrap_with(Self::bootstrap_credentials_from_env())
+            .await
+    }
+
+    /// 以给定凭据尝试 bootstrap；None 或已有管理员时返回 `Ok(None)`。
+    pub async fn try_bootstrap_with(
+        &self,
+        creds: Option<BootstrapCredentials>,
+    ) -> Result<Option<BootstrapResult>, AppError> {
+        let Some(creds) = creds else {
             return Ok(None);
         };
         match self.bootstrap(creds).await {
@@ -221,10 +258,34 @@ impl AdministratorService {
         }
     }
 
-    pub async fn bootstrap(
+    /// HTTP bootstrap：已有管理员一律拒绝；未配置初始化口令拒绝；口令以常量时间比较。
+    pub async fn bootstrap_with_token(
         &self,
+        provided_token: Option<&str>,
         creds: BootstrapCredentials,
     ) -> Result<BootstrapResult, AppError> {
+        self.ensure_not_bootstrapped().await?;
+        let Some(expected) = self.bootstrap_token.as_deref() else {
+            return Err(AppError::new(
+                "admin.bootstrap_disabled",
+                "未配置 SIGNAL_BOOTSTRAP_TOKEN，HTTP bootstrap 已禁用",
+            )
+            .with_status(axum::http::StatusCode::FORBIDDEN));
+        };
+        let ok = provided_token
+            .map(|p| constant_time_token_eq(p, expected))
+            .unwrap_or(false);
+        if !ok {
+            tracing::warn!("HTTP bootstrap 初始化口令校验失败");
+            return Err(
+                AppError::new("admin.bootstrap_token_invalid", "初始化口令无效")
+                    .with_status(axum::http::StatusCode::FORBIDDEN),
+            );
+        }
+        self.bootstrap(creds).await
+    }
+
+    async fn ensure_not_bootstrapped(&self) -> Result<(), AppError> {
         if self
             .repo
             .get_administrator()
@@ -238,6 +299,14 @@ impl AdministratorService {
             )
             .with_status(axum::http::StatusCode::CONFLICT));
         }
+        Ok(())
+    }
+
+    pub async fn bootstrap(
+        &self,
+        creds: BootstrapCredentials,
+    ) -> Result<BootstrapResult, AppError> {
+        self.ensure_not_bootstrapped().await?;
 
         let username = creds.username.trim().to_string();
         if username.is_empty() {
@@ -609,6 +678,118 @@ mod tests {
         let auth = svc.sessions().authenticate_token(&token).await.unwrap();
         assert!(auth.must_change_password);
         (svc, store, auth, token)
+    }
+
+    fn creds(username: &str) -> BootstrapCredentials {
+        BootstrapCredentials {
+            username: username.into(),
+            password: "Bootstrap9!".into(),
+        }
+    }
+
+    fn service_with_token(
+        token: Option<&str>,
+    ) -> (AdministratorService, Arc<MemoryAdministratorStore>) {
+        let clock = Arc::new(FrozenClock::at_unix_millis(1_700_000_000_000));
+        let (svc, store) = build_service(clock);
+        (svc.with_bootstrap_token(token.map(str::to_string)), store)
+    }
+
+    #[tokio::test]
+    async fn http_bootstrap_rejected_when_token_not_configured() {
+        let (svc, store) = service_with_token(None);
+        let err = svc
+            .bootstrap_with_token(Some("anything"), creds("admin"))
+            .await
+            .unwrap_err();
+        assert_eq!(err.code, "admin.bootstrap_disabled");
+        assert_eq!(err.status, axum::http::StatusCode::FORBIDDEN);
+        assert!(store.get_administrator().await.unwrap().is_none());
+
+        // 空白口令等同未配置。
+        let (svc, _) = service_with_token(Some("   "));
+        let err = svc
+            .bootstrap_with_token(Some("   "), creds("admin"))
+            .await
+            .unwrap_err();
+        assert_eq!(err.code, "admin.bootstrap_disabled");
+    }
+
+    #[tokio::test]
+    async fn http_bootstrap_rejected_with_wrong_or_missing_token() {
+        let (svc, store) = service_with_token(Some("init-token-123"));
+        for provided in [
+            Some("init-token-124"),
+            Some(""),
+            Some("init-token-1234"),
+            None,
+        ] {
+            let err = svc
+                .bootstrap_with_token(provided, creds("admin"))
+                .await
+                .unwrap_err();
+            assert_eq!(err.code, "admin.bootstrap_token_invalid");
+            assert_eq!(err.status, axum::http::StatusCode::FORBIDDEN);
+        }
+        assert!(store.get_administrator().await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn http_bootstrap_rejected_when_admin_exists_even_with_valid_token() {
+        let (svc, _) = service_with_token(Some("init-token-123"));
+        svc.bootstrap_with_token(Some("init-token-123"), creds("admin"))
+            .await
+            .unwrap();
+        let err = svc
+            .bootstrap_with_token(Some("init-token-123"), creds("admin2"))
+            .await
+            .unwrap_err();
+        assert_eq!(err.code, "admin.already_bootstrapped");
+        assert_eq!(err.status, axum::http::StatusCode::CONFLICT);
+        // 已有管理员时，无论口令是否配置/正确都返回 already_bootstrapped。
+        let err = svc
+            .bootstrap_with_token(Some("wrong"), creds("admin2"))
+            .await
+            .unwrap_err();
+        assert_eq!(err.code, "admin.already_bootstrapped");
+    }
+
+    #[tokio::test]
+    async fn http_bootstrap_succeeds_with_valid_token() {
+        let (svc, store) = service_with_token(Some("init-token-123"));
+        let result = svc
+            .bootstrap_with_token(Some("init-token-123"), creds("admin"))
+            .await
+            .unwrap();
+        assert_eq!(result.username, "admin");
+        assert!(result.must_change_password);
+        let admin = store.get_administrator().await.unwrap().unwrap();
+        assert!(admin.must_change_password);
+    }
+
+    #[tokio::test]
+    async fn startup_bootstrap_creates_admin_once() {
+        let (svc, store) = service_with_token(None);
+        assert!(svc.try_bootstrap_with(None).await.unwrap().is_none());
+        assert!(store.get_administrator().await.unwrap().is_none());
+
+        let first = svc.try_bootstrap_with(Some(creds("admin"))).await.unwrap();
+        assert_eq!(first.unwrap().username, "admin");
+        // 已有管理员：跳过且不报错。
+        let second = svc.try_bootstrap_with(Some(creds("other"))).await.unwrap();
+        assert!(second.is_none());
+        assert_eq!(
+            store.get_administrator().await.unwrap().unwrap().username,
+            "admin"
+        );
+    }
+
+    #[test]
+    fn constant_time_token_eq_matches_only_identical_tokens() {
+        assert!(constant_time_token_eq("abc", "abc"));
+        assert!(!constant_time_token_eq("abc", "abd"));
+        assert!(!constant_time_token_eq("abc", "abcd"));
+        assert!(!constant_time_token_eq("", "abc"));
     }
 
     #[tokio::test]

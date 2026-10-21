@@ -84,6 +84,13 @@ cargo run -p signal-service --bin signal-worker
 
 默认 API 地址：`http://127.0.0.1:8080`。
 
+**初始化管理员**（只需一次；密码 10–128 位，须同时包含字母和数字），二选一：
+
+- 自动（推荐）：启动 `signal-service` 前设置 `SIGNAL_BOOTSTRAP_USERNAME` 与 `SIGNAL_BOOTSTRAP_PASSWORD`。启动时若尚无管理员则自动创建，已有管理员则跳过。Worker 不执行 bootstrap。
+- HTTP：设置足够长的随机值 `SIGNAL_BOOTSTRAP_TOKEN` 并重启 `signal-service`，然后调用 `POST /api/admin/auth/bootstrap`，请求体为 `{"username":"admin","password":"<强密码>","bootstrap_token":"<SIGNAL_BOOTSTRAP_TOKEN>"}`。口令以常量时间比较：未配置口令返回 `403 admin.bootstrap_disabled`，口令错误返回 `403 admin.bootstrap_token_invalid`，已有管理员时一律返回 `409 admin.already_bootstrapped`。
+
+首次登录强制改密；初始化完成后请移除上述 bootstrap 变量。
+
 ```powershell
 cd web
 pnpm install
