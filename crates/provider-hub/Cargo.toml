@@ -3,6 +3,7 @@ name = "provider-hub"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+license.workspace = true
 description = "Signal 裁剪版 provider-hub：OCR trait + FakeOcr"
 
 [dependencies]

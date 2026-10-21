@@ -338,5 +338,3 @@ Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING
 ## License
 
 Released under the [MIT License](LICENSE).
-
-> `Cargo.toml` currently declares `license = "MIT OR Apache-2.0"` in its workspace metadata. If dual licensing is intended, add the Apache-2.0 text and keep the metadata consistent.

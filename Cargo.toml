@@ -14,7 +14,7 @@ version = "0.0.1"
 edition = "2024"
 rust-version = "1.96"
 authors = ["Aero Signal"]
-license = "MIT OR Apache-2.0"
+license = "MIT"
 
 [workspace.dependencies]
 argon2 = { version = "0.5", features = ["std"] }

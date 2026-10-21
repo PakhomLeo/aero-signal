@@ -186,4 +186,4 @@ cargo fmt --all -- --check
 
 ## 许可证
 
-本项目以 [MIT License](LICENSE) 发布。注意：`Cargo.toml` 的 `workspace.package.license` 目前仍声明为 `MIT OR Apache-2.0`，如需双许可证请补充 Apache-2.0 全文并统一元数据。对外分发前请再次审查第三方依赖许可。
+本项目以 [MIT License](LICENSE) 发布。
