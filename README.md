@@ -266,6 +266,8 @@ cargo clippy -p platform-connectors -p crawler-capture -p signal-service --tests
 pnpm -C web build
 ```
 
+> As of this writing, the Clippy command is clean on Rust 1.96.1. Newer stable toolchains (1.99.1) report `clippy::double_must_use` at `#[async_trait]` in `crates/provider-hub/src/ocr.rs`. To reproduce the reference result, run `cargo +1.96 clippy …`.
+
 Targeted suites for day-to-day work:
 
 ```bash
