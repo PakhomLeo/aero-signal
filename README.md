@@ -68,6 +68,14 @@ Job states: `queued`, `running`, `retry_wait`, `succeeded`, `failed`, `needs_act
 
 Any change that affects what downstream consumers see (new article, refetch, manual edit, OCR or asset change) writes, in one transaction: the current article state, an immutable `article_revisions` row, an `article_change_events` row and a `delivery_outbox` row. See [`docs/DATABASE_DESIGN.md`](docs/DATABASE_DESIGN.md) for the full schema.
 
+## Admin console
+
+The Vue admin console (shown on the *Today's overview* page of a fresh local instance with no data yet):
+
+<p align="center">
+  <img src="docs/assets/admin-overview.png" alt="Admin console overview page" width="100%" />
+</p>
+
 ## Tech stack
 
 | Layer | Technology |

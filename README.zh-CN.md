@@ -139,6 +139,12 @@ cargo fmt --all -- --check
 - [采集流水线与任务流转](docs/assets/collection-pipeline.svg)
 - [数据模型与分发流程](docs/assets/data-model-delivery.svg)
 
+管理后台（全新本地实例的「今日概览」页，尚无数据）：
+
+<p align="center">
+  <img src="docs/assets/admin-overview.png" alt="管理后台今日概览" width="100%" />
+</p>
+
 ## 参与贡献
 
 欢迎提交 Issue 和 Pull Request，提交前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。所有贡献必须遵守上文的授权边界。
