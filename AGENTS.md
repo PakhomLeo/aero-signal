@@ -249,7 +249,7 @@ fetch_article_detail
 - 文章身份优先：`source_account_id + __biz + mid + idx`。
 - 文章身份后备：`source_account_id + canonical_url`。
 - 内容 hash 用于变化检测和资产去重，不是全局文章身份。
-- 写请求必须使用 Idempotency-Key、业务唯一键或 Job 幂等键。
+- 写请求必须通过业务唯一键或 Job 幂等键（`job_pipeline::kinds::idempotency`）去重。`crates/server-core` 中的 `Idempotency-Key` 中间件尚未挂到任何路由，不能依赖该请求头。
 - Job worker 依赖持久 lease；失去 lease 的旧 worker 不能提交结果。
 - Heartbeat 使用 event key 幂等；多个详情成功不得重复推进。
 - 时间逻辑使用注入的 `Clock`，测试中不得依赖真实 sleep 推进业务时间。

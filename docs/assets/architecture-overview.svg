@@ -44,7 +44,7 @@
 <text class="lane" x="36" y="232" text-anchor="start">SIGNAL-SERVICE  (HTTP, Axum)</text>
 <rect class="box k1" x="36" y="242" width="1128" height="66" rx="10"/>
 <text class="bt" x="50" y="266">HTTP API</text>
-<text class="bs" x="50" y="286">/api/admin/*  admin routes   ·   /api/*  delivery routes   ·   /healthz   ·   auth, DTO validation, Idempotency-Key, error mapping</text>
+<text class="bs" x="50" y="286">/api/admin/*  admin routes   ·   /api/*  delivery routes   ·   /healthz   ·   auth, DTO validation, trace id, error mapping</text>
 <path class="ln" d="M296 194 L296 240" marker-end="url(#a)"/>
 <path class="ln" d="M904 194 L904 240" marker-end="url(#a)"/>
 <text class="lane" x="36" y="346" text-anchor="start">APPLICATION CORE</text>

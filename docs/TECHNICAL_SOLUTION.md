@@ -104,7 +104,7 @@ service/src/
 
 | 场景 | 实现模式 | 代码要求 |
 | --- | --- | --- |
-| 写请求幂等 | `Idempotency-Key` + command hash + resource key | 重复请求返回同一 job 或同一资源，不重复建二维码、source、plan、article |
+| 写请求幂等 | Job 幂等键（`job_pipeline::kinds::idempotency`，`fetch_jobs.idempotency_key` 唯一索引）+ 业务唯一键 / resource key；`Idempotency-Key` 请求头目前未生效（中间件未挂路由） | 重复请求返回同一 job 或同一资源，不重复建二维码、source、plan、article |
 | 并发控制 | PostgreSQL transaction + unique constraint + Redis/DB lease | source 验证、文章详情抓取、每日计划、OCR 均以业务唯一键加锁 |
 | 状态机 | domain enum + transition method | 禁止 API 或 SQL 直接从任意状态跳到目标状态 |
 | 错误处理 | typed error + `module.reason_code` | 前端、审计、safe_context、health snapshot 使用同一错误码 |
@@ -218,7 +218,7 @@ article fetch lease
 - Batch 6 service/repository 纯逻辑拆分为内部模块，编排仍保持 `api -> service -> domain -> repository -> adapter/job` 边界。
 - Worker 超时通过 `execution_timeout_at` 竞争 handler；mp_admin 网络失败使用稳定脱敏消息，CDP 在 redirect 后重新校验有效 URL。
 
-后台 API 只要求 singleton administrator session；所有写请求支持 idempotency key。消费 API 由分组 Token 保护，除了文章接口新增：
+后台 API 只要求 singleton administrator session；会入队任务或创建资源的写请求通过 Job 幂等键和业务唯一键去重（`Idempotency-Key` 请求头目前被忽略）。消费 API 由分组 Token 保护，除了文章接口新增：
 
 ```text
 GET /api/service-health/latest
