@@ -14,6 +14,7 @@ Aero Signal is a self-hosted, single-server back office for **collecting, cleani
 
 - [Highlights](#highlights)
 - [Architecture](#architecture)
+- [Admin console](#admin-console)
 - [Tech stack](#tech-stack)
 - [Repository layout](#repository-layout)
 - [Quick start](#quick-start)
