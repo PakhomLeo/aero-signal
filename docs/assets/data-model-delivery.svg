@@ -1,0 +1,119 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="700" viewBox="0 0 1200 700" role="img" aria-labelledby="t d">
+<title id="t">Data model and delivery flow</title>
+<desc id="d">Monitored accounts own articles with assets, OCR blocks and revisions; each visible change writes a change event and an outbox row; delivery groups, scoped hashed tokens and the delivery API expose articles incrementally by change_sequence and expose redacted daily health snapshots.</desc>
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<style>
+  .panel{fill:#f8fafc;stroke:#cbd5e1;stroke-width:1.5}
+  .h1{font:700 26px -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;fill:#0f172a}
+  .h2{font:400 14px -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;fill:#475569}
+  .lane{font:700 12px -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;fill:#64748b;letter-spacing:.12em}
+  .bt{font:700 15px -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;fill:#0f172a}
+  .bs{font:400 12.5px -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;fill:#334155}
+  .mono{font:500 12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#334155}
+  .lbl{font:600 11.5px -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;fill:#475569}
+  .box{stroke-width:1.6}
+  .k0{fill:#e0f2fe;stroke:#0284c7} .k1{fill:#dcfce7;stroke:#16a34a}
+  .k2{fill:#ede9fe;stroke:#7c3aed} .k3{fill:#fef3c7;stroke:#d97706}
+  .k4{fill:#ffe4e6;stroke:#e11d48} .k5{fill:#f1f5f9;stroke:#64748b}
+  .grp{fill:none;stroke:#94a3b8;stroke-width:1.2;stroke-dasharray:6 5}
+  .ln{stroke:#64748b;stroke-width:1.8;fill:none}
+  .lnd{stroke:#64748b;stroke-width:1.5;fill:none;stroke-dasharray:5 4}
+  .ah{fill:#64748b}
+  @media (prefers-color-scheme: dark){
+    .panel{fill:#0d1117;stroke:#30363d}
+    .h1,.bt{fill:#e6edf3} .h2,.lbl{fill:#9da7b3} .lane{fill:#8b949e}
+    .bs,.mono{fill:#c9d1d9}
+    .k0{fill:#0c2d48;stroke:#38bdf8} .k1{fill:#0f2e1c;stroke:#4ade80}
+    .k2{fill:#251a47;stroke:#a78bfa} .k3{fill:#3a2a0a;stroke:#fbbf24}
+    .k4{fill:#3d0f1c;stroke:#fb7185} .k5{fill:#161b22;stroke:#8b949e}
+    .grp{stroke:#484f58} .ln,.lnd{stroke:#8b949e} .ah{fill:#8b949e}
+  }
+</style>
+<rect class="panel" x="1" y="1" width="1198" height="698" rx="18"/>
+<text class="h1" x="36" y="52" text-anchor="start">Data Model &amp; Delivery Flow</text>
+<text class="h2" x="36" y="78" text-anchor="start">Every downstream-visible change writes article state, an immutable revision, a change event and an outbox row in one transaction</text>
+<rect class="grp" x="30" y="104" width="560" height="440" rx="14"/>
+<text class="lane" x="48" y="128" text-anchor="start">CONTENT  (PostgreSQL)</text>
+<rect class="box k0" x="48" y="142" width="250" height="76" rx="10"/>
+<text class="bt" x="62" y="166">source_accounts</text>
+<text class="bs" x="62" y="186">monitored account, level,</text>
+<text class="bs" x="62" y="203">heartbeat, rules version</text>
+<rect class="box k5" x="322" y="142" width="250" height="76" rx="10"/>
+<text class="bt" x="336" y="166">account_fetch_rules</text>
+<text class="bs" x="336" y="186">source_heartbeat_events</text>
+<text class="bs" x="336" y="203">source_validation_runs</text>
+<rect class="box k1" x="48" y="252" width="250" height="92" rx="10"/>
+<text class="bt" x="62" y="276">articles</text>
+<text class="bs" x="62" y="296">strong identity:</text>
+<text class="bs" x="62" y="313">source + __biz + mid + idx</text>
+<text class="bs" x="62" y="330">fallback: canonical URL</text>
+<rect class="box k5" x="322" y="252" width="250" height="92" rx="10"/>
+<text class="bt" x="336" y="276">article_links / assets</text>
+<text class="bs" x="336" y="296">article_image_decisions</text>
+<text class="bs" x="336" y="313">article_ocr_blocks</text>
+<text class="bs" x="336" y="330">objects in S3 / MinIO</text>
+<rect class="box k2" x="48" y="380" width="250" height="66" rx="10"/>
+<text class="bt" x="62" y="404">article_revisions</text>
+<text class="bs" x="62" y="424">immutable content versions</text>
+<rect class="box k2" x="48" y="466" width="250" height="66" rx="10"/>
+<text class="bt" x="62" y="490">article_change_events</text>
+<text class="bs" x="62" y="510">monotonic change_sequence</text>
+<rect class="box k2" x="322" y="466" width="250" height="66" rx="10"/>
+<text class="bt" x="336" y="490">delivery_outbox</text>
+<text class="bs" x="336" y="510">replayable delivery rows</text>
+<path class="ln" d="M173 218 L173 250" marker-end="url(#a)"/>
+<path class="ln" d="M298 180 L320 180" marker-end="url(#a)"/>
+<path class="ln" d="M298 298 L320 298" marker-end="url(#a)"/>
+<path class="ln" d="M173 344 L173 378" marker-end="url(#a)"/>
+<path class="ln" d="M173 446 L173 464" marker-end="url(#a)"/>
+<path class="ln" d="M298 499 L320 499" marker-end="url(#a)"/>
+<text class="lbl" x="447" y="372" text-anchor="middle">same transaction</text>
+<text class="lbl" x="447" y="388" text-anchor="middle">(article + revision + event + outbox)</text>
+<rect class="grp" x="620" y="104" width="550" height="440" rx="14"/>
+<text class="lane" x="638" y="128" text-anchor="start">DELIVERY  (PostgreSQL)</text>
+<rect class="box k3" x="638" y="142" width="250" height="76" rx="10"/>
+<text class="bt" x="652" y="166">delivery_groups</text>
+<text class="bs" x="652" y="186">named consumer group</text>
+<rect class="box k3" x="904" y="142" width="250" height="76" rx="10"/>
+<text class="bt" x="918" y="166">delivery_group_sources</text>
+<text class="bs" x="918" y="186">links a group to the</text>
+<text class="bs" x="918" y="203">source_accounts it may read</text>
+<rect class="box k3" x="638" y="252" width="250" height="92" rx="10"/>
+<text class="bt" x="652" y="276">api_tokens</text>
+<text class="bs" x="652" y="296">stored as hash, shown once</text>
+<text class="bs" x="652" y="313">scopes, optional IP allow</text>
+<text class="bs" x="652" y="330">expiry / revocation</text>
+<rect class="box k5" x="904" y="252" width="250" height="92" rx="10"/>
+<text class="bt" x="918" y="276">api_call_logs</text>
+<text class="bs" x="918" y="296">per-call audit of</text>
+<text class="bs" x="918" y="313">delivery API usage</text>
+<rect class="box k1" x="638" y="380" width="516" height="66" rx="10"/>
+<text class="bt" x="652" y="404">Delivery API   (Authorization: Bearer &lt;token&gt;)</text>
+<text class="bs" x="652" y="424">GET /api/articles · /api/articles/{id} · /api/articles/since?after=&lt;seq&gt;&amp;limit=&lt;n&gt;</text>
+<rect class="box k1" x="638" y="466" width="516" height="66" rx="10"/>
+<text class="bt" x="652" y="490">Health API   (scope service_health:read)</text>
+<text class="bs" x="652" y="510">GET /api/service-health/latest · /api/service-health?date=YYYY-MM-DD</text>
+<path class="ln" d="M888 180 L902 180" marker-end="url(#a)"/>
+<path class="ln" d="M763 218 L763 250" marker-end="url(#a)"/>
+<path class="ln" d="M763 344 L763 378" marker-end="url(#a)"/>
+<path class="lnd" d="M888 298 L902 298" marker-end="url(#a)"/>
+<path class="lnd" d="M298 432 L636 432" marker-end="url(#a)"/>
+<text class="lbl" x="467" y="424" text-anchor="middle">read by change_sequence</text>
+<rect class="box k0" x="36" y="580" width="360" height="80" rx="10"/>
+<text class="bt" x="50" y="604">Downstream service</text>
+<text class="bs" x="50" y="624">polls /api/articles/since, stores the last</text>
+<text class="bs" x="50" y="641">change_sequence, resumes from it</text>
+<rect class="box k5" x="420" y="580" width="360" height="80" rx="10"/>
+<text class="bt" x="434" y="604">service_health_snapshots</text>
+<text class="bs" x="434" y="624">immutable daily snapshot (components,</text>
+<text class="bs" x="434" y="641">check runs); redacted on output</text>
+<rect class="box k4" x="804" y="580" width="360" height="80" rx="10"/>
+<text class="bt" x="818" y="604">Never returned by delivery APIs</text>
+<text class="bs" x="818" y="624">proxy endpoints, cookies, tokens, real</text>
+<text class="bs" x="818" y="641">collector IDs, raw error text</text>
+<path class="ln" d="M638 413 L606 413 L606 560 L216 560 L216 578" marker-end="url(#a)"/>
+<path class="lnd" d="M780 620 L802 620" marker-end="url(#a)"/>
+<path class="lnd" d="M600 578 L600 566 L896 566 L896 534" marker-end="url(#a)"/>
+</svg>

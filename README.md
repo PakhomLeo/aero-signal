@@ -1,136 +1,327 @@
 # Aero Signal
 
+**English** | [简体中文](README.zh-CN.md)
+
 <p align="center">
-  <img src="docs/assets/signal-overview.svg" alt="Aero Signal 架构概览" width="100%" />
+  <img src="docs/assets/architecture-overview.svg" alt="Aero Signal architecture overview" width="100%" />
 </p>
 
-一个面向单服务器部署的微信公众号采集、正文清洗、版本归档和增量分发系统。Signal 将公众号监测、采集账号、异步任务、文章资产、OCR、健康快照和下游 API 统一到可审计、可恢复的工作流中。
+Aero Signal is a self-hosted, single-server back office for **collecting, cleaning, versioning and incrementally delivering WeChat Official Account (公众号) articles** that its operator is authorised to process. It ties together monitored accounts, authorised collector logins, durable background jobs, article assets, OCR, daily health snapshots and a token-scoped delivery API in one auditable, recoverable workflow.
 
-> 当前仓库为私有个人项目。平台连接器必须遵守授权边界：不实现验证码/WAF 绕过、设备伪装、任意第三方公众号枚举或未授权登录。
+> **Authorised use only.** Aero Signal is not a scraping-evasion tool and not an Official Account search engine. It does **not** bypass CAPTCHAs or WAFs, does **not** spoof devices or rotate fingerprints, and does **not** perform unauthorised logins. See [Compliance and authorisation boundaries](#compliance-and-authorisation-boundaries).
 
-## 核心能力
+## Table of contents
 
-- 微信文章 URL 规范化、敏感参数清理、强身份去重和安全短链解析。
-- 采集账号二维码授权、SecretStore 引用和固定出口绑定。
-- MP Admin 受限分页发现、最多三篇初始验证及可恢复历史回填。
-- HTTP 优先的正文采集，必要时使用受限浏览器渲染懒加载内容。
-- 语义化 HTML 清洗和 Markdown 转换，保留标题、列表、引用、代码、表格、链接、图片和媒体占位。
-- 正文图片筛选、对象存储、OCR 锚点回填；单资源失败不丢整篇正文。
-- 持久 Job、幂等键、租约、重试、取消和进度查询。
-- 文章 revision、change event 与 delivery outbox 原子提交。
-- 每日健康预检、不可变快照、非等间隔计划和心跳升降级。
-- 管理后台以及按分组 Token 授权的增量消费 API。
+- [Highlights](#highlights)
+- [Architecture](#architecture)
+- [Tech stack](#tech-stack)
+- [Repository layout](#repository-layout)
+- [Quick start](#quick-start)
+- [Configuration](#configuration)
+- [API overview](#api-overview)
+- [Testing](#testing)
+- [Compliance and authorisation boundaries](#compliance-and-authorisation-boundaries)
+- [Project status and roadmap](#project-status-and-roadmap)
+- [Documentation](#documentation)
+- [Contributing](#contributing)
+- [License](#license)
 
-## 技术栈
+## Highlights
 
-| 层级 | 技术 |
+- **Safe URL handling** – WeChat article URL canonicalisation, removal of sensitive query parameters (`uin`, `key`, `pass_ticket`, `appmsg_token`, …), strong article identity (`source + __biz + mid + idx`, canonical URL as fallback) and bounded, hop-by-hop validated short-link resolution.
+- **Authorised collector accounts** – QR-code login state machine (`waiting → scanned → confirmed / expired / failed / cancelled`); credentials are kept in a SecretStore and only referenced from the database; each collector is bound to a fixed egress.
+- **Discovery and backfill** – capability-based connectors (`mp_admin` for accounts the operator administers, a `fake` connector for development); bounded pagination, initial validation of at most three articles, and resumable, page-by-page history backfill.
+- **HTTP-first capture** – bounded HTTP fetching with SSRF protection, explicit redirect checks, size limits and timeouts; an optional Chrome DevTools Protocol (CDP) browser renders lazy-loaded content only when needed.
+- **Semantic content** – DOM allow-list cleaning to semantic HTML and Markdown that keeps headings, lists, quotes, code, tables, links, images and media placeholders.
+- **Assets and OCR** – image classification, hash-deduplicated object storage (S3/MinIO) and OCR text anchored back into Markdown. A single failed asset never drops the article body; failed assets get their own retry job.
+- **Durable jobs** – persistent jobs with idempotency keys, leases, retries, timeouts, cancellation and progress reporting (`crates/job-pipeline`).
+- **Versioning and delivery** – article revision, change event and delivery outbox are committed atomically; consumers read incrementally by a monotonic `change_sequence`.
+- **Daily operations** – 07:30 preflight, immutable daily health snapshot, 08:00 non-uniform daily plan and heartbeat-based promotion/demotion of monitored accounts.
+- **Admin UI** – Vue 3 back office for the single administrator, plus a group-token API for downstream services.
+
+## Architecture
+
+Two binaries are built from the `signal-service` crate and share one composition root (`service/src/app.rs`):
+
+| Binary | Role |
 | --- | --- |
-| 后端 | Rust 1.96、Axum、Tokio、SQLx |
-| 数据 | PostgreSQL、Redis、MinIO/S3 |
-| 采集 | Reqwest、Chromium CDP、可替换 Connector |
-| 前端 | Vue 3、TypeScript、Vite、Pinia |
-| 测试 | 内存 Repository、Fake Connector、Fixture/Fake Adapter |
+| `signal-service` | Axum HTTP server: `/api/admin/*` (admin), `/api/*` (delivery), `/healthz` |
+| `signal-worker` | Polls and executes durable jobs; runs the daily scheduler (07:30 preflight / 08:00 plan) unless `SIGNAL_SCHEDULER=0` |
 
-## 项目结构
+Dependencies flow `api → service → domain / repository → adapter / job`. API handlers only authenticate, validate and map errors; anything that takes longer than about two seconds is enqueued as a job. Every repository has an in-memory and a PostgreSQL implementation with the same behaviour.
+
+### Collection pipeline and job flow
+
+<p align="center">
+  <img src="docs/assets/collection-pipeline.svg" alt="Collection pipeline and job flow" width="100%" />
+</p>
+
+Job kinds (from `AGENTS.md` / `crates/job-pipeline`): `daily_preflight`, `build_daily_plan`, `collector_probe`, `source_validation`, `source_validation_aggregate`, `fetch_source`, `history_backfill`, `fetch_article_detail`, `retry_article_assets`, `ocr_article_image`, `refetch_article`, `retention_cleanup`.
+
+Job states: `queued`, `running`, `retry_wait`, `succeeded`, `failed`, `needs_action`, `cancelling`, `cancelled`, `dead_letter`.
+
+### Data model and delivery
+
+<p align="center">
+  <img src="docs/assets/data-model-delivery.svg" alt="Data model and delivery flow" width="100%" />
+</p>
+
+Any change that affects what downstream consumers see (new article, refetch, manual edit, OCR or asset change) writes, in one transaction: the current article state, an immutable `article_revisions` row, an `article_change_events` row and a `delivery_outbox` row. See [`docs/DATABASE_DESIGN.md`](docs/DATABASE_DESIGN.md) for the full schema.
+
+## Tech stack
+
+| Layer | Technology |
+| --- | --- |
+| Backend | Rust (edition 2024, `rust-version = 1.96`), Axum 0.8, Tokio, SQLx 0.8 |
+| Data | PostgreSQL, Redis, S3-compatible object storage (MinIO) |
+| Capture | Reqwest (rustls), `chromiumoxide` over CDP, pluggable connectors |
+| Security | Argon2id admin passwords, hashed API tokens, SSRF guard, log redaction |
+| Frontend | Vue 3, TypeScript, Vite 6, Vue Router, Pinia |
+| Testing | In-memory repositories, fake connector / object store / OCR, HTML fixtures |
+
+## Repository layout
 
 ```text
-Signal/
-├─ service/                    # HTTP 服务、业务编排、Worker 和仓储实现
+.
+├─ service/                    # signal-service crate: HTTP API, services, domain, repositories, jobs, worker
+│  ├─ src/api/admin/           # /api/admin routes (administrator session)
+│  ├─ src/api/delivery/        # /api routes (delivery-group Bearer token)
+│  ├─ src/service/             # use-case orchestration and policies
+│  ├─ src/domain/              # state machines and business rules
+│  ├─ src/repository/          # repository traits + memory + PostgreSQL implementations
+│  ├─ src/jobs/                # job handlers and registry
+│  ├─ src/adapters/            # SecretStore, QR ticket store (Redis), proxy provider
+│  ├─ src/bin/signal_worker.rs # worker binary
+│  └─ tests/                   # integration tests (fakes only)
 ├─ crates/
-│  ├─ server-core/            # 配置、时钟、错误、鉴权和通用 HTTP 能力
-│  ├─ job-pipeline/           # 持久任务、租约、重试、取消和处理器注册
-│  ├─ platform-connectors/    # mp_admin / fake / weread 能力适配
-│  ├─ crawler-capture/        # URL、正文、图片、SSRF、浏览器和对象存储
-│  └─ provider-hub/           # OCR Provider 抽象与 Fake Provider
-├─ web/                        # Vue 管理后台
-├─ migrations/                 # 只追加的 SQLx 迁移
-├─ scripts/                    # 本地资源初始化和冒烟脚本
-├─ docs/                       # PRD、技术方案、数据库、API 和部署说明
-├─ AGENTS.md                   # Agent/开发者接手入口
-└─ SIGNAL_REPAIR_LOOP_PLAN.md  # 已执行的采集链路修复记录
+│  ├─ server-core/             # config, clock, errors, auth extractors, health, pagination, idempotency
+│  ├─ job-pipeline/            # durable jobs: lease, retry, cancel, progress, safe context
+│  ├─ platform-connectors/     # mp_admin / fake / weread (unsupported) capability adapters
+│  ├─ crawler-capture/         # URL identity, HTTP/CDP capture, SSRF guard, extractor, assets, object store
+│  └─ provider-hub/            # OCR provider trait + fake provider
+├─ web/                        # Vue 3 admin UI
+├─ migrations/                 # append-only SQLx migrations (applied automatically on start)
+├─ scripts/                    # PowerShell helpers for local resources and fake smoke tests
+├─ docs/                       # PRD, technical design, modules, database, API, deployment (Chinese)
+├─ AGENTS.md                   # developer / agent onboarding guide (Chinese)
+└─ SIGNAL_REPAIR_LOOP_PLAN.md  # record of the completed capture-pipeline repair work (Chinese)
 ```
 
-## 快速开始
+## Quick start
 
-### 1. 环境要求
+The commands below are for Linux/macOS shells. The original project docs and `scripts/*.ps1` use PowerShell; equivalents are noted where relevant.
 
-- Rust 1.96（仓库包含 `rust-toolchain.toml`）
-- Node.js 22+、pnpm 11
-- PostgreSQL、Redis、MinIO/S3
-- 可选：兼容 Chrome DevTools Protocol 的浏览器运行时
+### 1. Prerequisites
 
-### 2. 配置
+- **Rust** via `rustup`. `rust-toolchain.toml` pins the `stable` channel (the workspace requires Rust ≥ 1.96) and also lists the `x86_64-pc-windows-msvc` target and `rustfmt`/`clippy`/`rust-analyzer` components, which `rustup` installs automatically on first use.
+- **Node.js ≥ 22** and **pnpm 11** (`web/package.json` pins `pnpm@11.10.0`).
+- For the full stack: **PostgreSQL**, **Redis** and an **S3-compatible object store** (MinIO or similar).
+- Optional: a Chromium-based browser exposing a CDP endpoint, for lazy-loaded pages.
 
-```powershell
-Copy-Item .env.example .env
+### 2. Fastest path: in-memory mode (no external services)
+
+Memory mode uses in-memory repositories, an in-memory SecretStore and QR ticket store, and a fake object store (add `SIGNAL_OCR_PROVIDER=fake` for fake OCR). It is for development and testing only and is rejected when `SIGNAL_ENV=production`.
+
+```bash
+SIGNAL_STORE=memory SIGNAL_EMBED_WORKER=1 \
+  cargo run -p signal-service --bin signal-service
 ```
 
-`.env.example` 中只有本地开发默认值。部署前必须更换数据库、对象存储和管理员 bootstrap 凭据，真实密码、Cookie、Token 与代理认证信息不得提交到 Git。
+> If a `.env` file exists, it is loaded automatically (via `dotenvy`). In memory mode, setting `REDIS_URL` or `S3_ENDPOINT` switches those adapters to the real Redis/S3 implementations.
 
-### 3. 初始化并运行
+The API listens on `http://127.0.0.1:8080`; `GET /healthz` returns `{"status":"ok","product":"signal"}`.
 
-```powershell
-# 可选：初始化本地数据库和 MinIO bucket
-./scripts/init-dev-resources.ps1
+### 3. Full stack: PostgreSQL + Redis + S3 + separate worker
 
-# HTTP API
+**Configure.**
+
+```bash
+cp .env.example .env          # PowerShell: Copy-Item .env.example .env
+```
+
+Then edit `.env`:
+
+- set `SIGNAL_SECRET_STORE_PATH` (required in PostgreSQL mode, e.g. `./data/secrets`; `data/` is git-ignored);
+- replace every local default credential before any non-local deployment.
+
+**Initialise PostgreSQL** (role, password and database names must match `DATABASE_URL`):
+
+```bash
+sudo -u postgres psql -c "CREATE ROLE aero LOGIN PASSWORD 'change-me';"
+sudo -u postgres psql -c "CREATE DATABASE aero_signal_dev OWNER aero;"
+```
+
+Migrations in `migrations/` are applied automatically when the service starts in PostgreSQL mode. You can also run them explicitly with the SQLx CLI: `sqlx migrate run`.
+
+**Redis** needs no initialisation. All keys use `REDIS_KEY_PREFIX` (default `signal:`).
+
+**Object storage:** create the bucket named by `S3_BUCKET` (default `aero-signal-dev`), for example with the MinIO client:
+
+```bash
+mc alias set local http://127.0.0.1:9000 "$S3_ACCESS_KEY" "$S3_SECRET_KEY"
+mc mb --ignore-existing local/aero-signal-dev
+```
+
+On Windows with Podman, `scripts/init-dev-resources.ps1` creates the database and bucket inside existing containers named `aero-postgres` and `aero-minio`.
+
+**Run the API and the worker** in two terminals:
+
+```bash
 cargo run -p signal-service --bin signal-service
-
-# 独立 Worker
 cargo run -p signal-service --bin signal-worker
 ```
 
-默认 API 地址：`http://127.0.0.1:8080`。
+In PostgreSQL mode, `SIGNAL_EMBED_WORKER` is ignored, so the separate worker is required.
 
-```powershell
+**Create the administrator** (once, before first login). The password must be 10–128 characters and contain letters and digits:
+
+```bash
+curl -X POST http://127.0.0.1:8080/api/admin/auth/bootstrap \
+  -H 'content-type: application/json' \
+  -d '{"username":"admin","password":"<a strong password>"}'
+```
+
+The first login enforces a password change. Do this on a private network: the bootstrap endpoint is unauthenticated until an administrator exists.
+
+### 4. Frontend
+
+```bash
 cd web
 pnpm install
-pnpm dev
+pnpm dev        # http://127.0.0.1:5173, proxies /api to http://127.0.0.1:8080
 ```
 
-### 4. 轻量本地验收
+Production build: `pnpm -C web build` (runs `vue-tsc -b && vite build`, output in `web/dist/`). Set `VITE_API_BASE_URL` to call the backend directly instead of the dev proxy.
 
-```powershell
-cargo test -p platform-connectors protocol
-cargo test -p crawler-capture
-cargo test -p signal-service --test source
-cargo test -p signal-service --test article_capture
-cargo test -p signal-service --lib
+## Configuration
+
+All settings are environment variables (a `.env` file in the working directory is loaded on start). Source of truth: `crates/server-core/src/config.rs`, `service/src/adapters/factory.rs` and [`docs/部署说明.md`](docs/部署说明.md).
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `SIGNAL_ENV` | `development` | `test` \| `development` \| `production`. Production checks every hard dependency before connecting and forbids fake fallbacks. |
+| `SIGNAL_STORE` | auto | `memory` \| `postgres`. If unset, `postgres` when `DATABASE_URL` is set, otherwise `memory`. |
+| `DATABASE_URL` | – | PostgreSQL connection string; required for `postgres`. |
+| `SIGNAL_LISTEN_ADDR` | `127.0.0.1:8080` | HTTP listen address (`LISTEN_ADDR` is also accepted). |
+| `SIGNAL_EMBED_WORKER` | `0` | Memory mode only: run the worker inside the HTTP process. |
+| `SIGNAL_SCHEDULER` | `1` | Worker daily scheduler (07:30 preflight / 08:00 plan); `0` disables it. |
+| `SIGNAL_WORKER_ID` | `signal-worker-<pid>` | Optional worker identifier. |
+| `SIGNAL_SECRET_STORE_PATH` | – | Directory for the file SecretStore. Required in PostgreSQL and production modes. |
+| `REDIS_URL` | – | Redis for QR login tickets. Required in PostgreSQL and production modes. |
+| `REDIS_KEY_PREFIX` | `signal:` | Prefix for all Redis keys. |
+| `S3_ENDPOINT` | – | S3/MinIO endpoint (path-style). Required in PostgreSQL and production modes; without it, memory mode uses a fake object store. |
+| `S3_ACCESS_KEY` / `S3_SECRET_KEY` | – | Object storage credentials; required when `S3_ENDPOINT` is set. |
+| `S3_BUCKET` | `aero-signal-dev` | Asset bucket. |
+| `CLOAKBROWSER_CDP_URL` | – | CDP endpoint of a Chromium-compatible browser for lazy-load rendering, e.g. `http://127.0.0.1:9222`. Optional in development, required in production. |
+| `SIGNAL_MP_ADMIN_PROTOCOL` | off | `1` / `true` / `yes` marks the real `mp_admin` QR-login and published-list protocol as ready; otherwise `mp_admin` reports itself as unsupported. The `fake` connector is registered in every non-production environment. |
+| `SIGNAL_OCR_PROVIDER` | – | Only `fake` exists today; set `fake` to enable fake OCR outside production. Production refuses to start (`config.ocr_provider_not_implemented`) until a real provider is added. |
+| `SIGNAL_PRODUCT` | `signal` | Product name reported by `/healthz`. |
+| `SIGNAL_BOOTSTRAP_USERNAME` / `SIGNAL_BOOTSTRAP_PASSWORD` | – | Initial administrator credentials (see note below). Never commit real values. |
+| `RUST_LOG` | – | Tracing filter, e.g. `info,signal=debug`. |
+
+> **Note on bootstrap variables.** `AdministratorService::try_bootstrap_from_env` reads `SIGNAL_BOOTSTRAP_*`, but no binary calls it yet. Use `POST /api/admin/auth/bootstrap` as shown above.
+
+Scheduling uses the timezone in `system_settings` (default `Asia/Shanghai`). Run the host or container in the same timezone, or set `TZ=Asia/Shanghai`.
+
+## API overview
+
+All error responses use `{"error":{"code":"module.reason_code","message":…,"details":…,"trace_id":…}}`. Error codes are listed in [`docs/api/错误码表.md`](docs/api/错误码表.md). Write requests accept an `Idempotency-Key` header.
+
+### Admin API: `/api/admin` (administrator session, `Authorization: Bearer <session token>` from `/auth/login`)
+
+| Area | Endpoints |
+| --- | --- |
+| Auth | `POST /auth/bootstrap`, `POST /auth/login`, `POST /auth/logout` |
+| Account | `GET` / `PATCH /me` |
+| Settings | `GET` / `PATCH /settings/schedule`; `GET` / `POST` / `PATCH /settings/egress-profiles`, `PATCH /settings/egress-profiles/{id}`, `POST /settings/egress-profiles/{id}/test`; `GET` / `POST` / `PATCH /settings/proxy-providers`, `PATCH /settings/proxy-providers/{id}` |
+| Collector accounts | `GET` / `PATCH /collector-accounts`, `PATCH /collector-accounts/{id}`, `POST /collector-accounts/qr-sessions`, `GET` / `DELETE /collector-accounts/qr-sessions/{ticket}`, `POST /collector-accounts/{id}/probe-now`, `POST /collector-accounts/{id}/reauthorize`. Outside production only: `POST /collector-accounts/qr-sessions/{ticket}/advance` (fake QR flow). |
+| Monitored sources | `POST /sources/validate`, `GET /source-validations/{id}`, `POST` / `GET /sources`, `GET` / `PATCH /sources/{id}`, `POST /sources/{id}/verify-again`, `POST /sources/{id}/fetch-now` |
+| Articles | `GET /articles/{id}`, `PATCH /articles/{id}/content`, `POST /articles/{id}/reocr`, `POST /articles/{id}/refetch`, `POST /articles/{id}/revisions/{revision}/restore` |
+| Health and plan | `GET /health-snapshots/latest`, `POST /health-snapshots/check-now`, `POST /health-snapshots/run-preflight`, `GET /daily-plan`, `POST /daily-plan/rebuild` |
+| Jobs | `GET /jobs/{id}`, `POST /jobs/{id}/cancel` |
+| Delivery groups | `GET` / `POST /delivery-groups`, `GET` / `PATCH /delivery-groups/{id}`, `GET` / `POST /delivery-groups/{id}/tokens`, `DELETE /delivery-groups/{id}/tokens/{token_id}` |
+
+### Delivery API: `/api` (`Authorization: Bearer <group API token>`)
+
+| Method | Path | Scope | Description |
+| --- | --- | --- | --- |
+| GET | `/articles?limit=` | `articles:read` | Articles of the token's group (default limit 50) |
+| GET | `/articles/{id}` | `articles:read` | Article detail (current revision) |
+| GET | `/articles/since?after=<change_sequence>&limit=` | `articles:read` | Incremental changes after a cursor (default limit 100) |
+| GET | `/sources` | `sources:read` | Monitored accounts of the group |
+| GET | `/service-health/latest` | `service_health:read` | Latest redacted daily health snapshot |
+| GET | `/service-health?date=YYYY-MM-DD` | `service_health:read` | Immutable snapshot for a given day |
+
+Plain-text tokens are shown only once, when they are created; only a hash is stored. Delivery responses never contain proxy endpoints, cookies, tokens, real collector IDs or raw error text. The contract is frozen by `service/tests/delivery.rs` (see [`docs/api/OpenAPI与契约冻结.md`](docs/api/OpenAPI与契约冻结.md)). No OpenAPI document is generated yet.
+
+## Testing
+
+All tests use fakes and fixtures. They never contact WeChat, proxies, real object storage or OCR services.
+
+```bash
+cargo build --workspace
+cargo test --workspace
 cargo fmt --all -- --check
+cargo clippy -p platform-connectors -p crawler-capture -p signal-service --tests -- -D warnings
+pnpm -C web build
 ```
 
-不要默认运行真实微信、代理、对象存储或 OCR 端到端测试；新增外部能力应通过 trait 和 fake/fixture 验证。
+Targeted suites for day-to-day work:
 
-## 关键业务流程
-
-```text
-管理员添加公众号 URL
-  → URL/短链安全解析
-  → 最多三篇候选验证
-  → 确认监测规则
-  → 每日预检和计划
-  → 候选发现与强身份去重
-  → 详情/正文/图片采集
-  → 正文与资产原子提交
-  → revision + change event + outbox
-  → 分组 Token 增量消费
+```bash
+cargo test -p platform-connectors protocol    # connector protocol and pagination
+cargo test -p crawler-capture                 # URL identity, extraction, SSRF, assets
+cargo test -p job-pipeline                    # lease / retry / cancel
+cargo test -p signal-service --lib            # service logic
+cargo test -p signal-service --test source            # source validation
+cargo test -p signal-service --test article_capture   # capture, asset retry, backfill
 ```
 
-## 文档入口
+## Compliance and authorisation boundaries
 
-- [Agent 接手与开发指南](AGENTS.md)：模块、流程、约束、测试和继续开发方式。
-- [产品需求](docs/PRD.md)
-- [技术方案](docs/TECHNICAL_SOLUTION.md)
-- [后端模块设计](docs/BACKEND_MODULES.md)
-- [数据库设计](docs/DATABASE_DESIGN.md)
-- [API 契约](docs/api/OpenAPI与契约冻结.md)
-- [错误码表](docs/api/错误码表.md)
-- [部署说明](docs/部署说明.md)
+These rules are part of the product's design, not optional settings. Contributions that weaken them will not be accepted.
 
-## 当前状态
+- **No protection bypass.** CAPTCHAs, login walls, WAF challenges and permission errors are classified as `needs_action` for a human to handle. There is no CAPTCHA solving, WAF bypass, mouse-movement simulation, MITM or similar evasion.
+- **No device spoofing.** No device-fingerprint rotation or device impersonation. Platform limits never trigger automatic egress rotation to keep requesting.
+- **No unauthorised login.** Collector accounts exist only after the administrator completes a QR login. `mp_admin` works only for accounts the operator is authorised to manage and cannot enumerate arbitrary third-party accounts. `weread` stays explicitly unsupported until it has been authorised and accepted.
+- **Credential hygiene.** Cookies, tokens, QR tickets, storage state and proxy passwords go only to the SecretStore or short-lived Redis entries. They never go to ordinary database columns, logs, audit details or job safe context.
+- **Network safety.** Every fetched URL goes through the SSRF guard, hop-by-hop redirect validation, response size limits and timeouts.
+- **Your responsibility.** You are responsible for complying with the WeChat platform's terms, copyright and the laws that apply to you. Only collect and redistribute content you are entitled to process.
 
-采集修复计划已完成本地验收，包括候选元数据、旧文章判断、短链安全、增量分页、历史回填、语义正文、资源部分成功、结构化错误和多维限流。详细记录见 [Signal 循环修复计划](SIGNAL_REPAIR_LOOP_PLAN.md#14-执行结果2026-07-17)。
+## Project status and roadmap
 
-## 许可证
+**Status (per `AGENTS.md`, 2026-07-17):** the capture-pipeline repair plan is complete and was verified locally. That work covered candidate metadata, old-article detection, short-link safety, incremental pagination, history backfill, semantic body extraction, partial asset success, structured errors and multi-dimensional rate limiting.
 
-项目元数据声明为 `MIT OR Apache-2.0`。在正式对外分发前，应补充对应许可证全文并再次审查第三方依赖许可。
+**Known limitations and next steps** (from `AGENTS.md` §13 and `docs/`):
+
+- [ ] Integrate and accept a real OCR provider. Only the fake provider exists, so `SIGNAL_ENV=production` refuses to start.
+- [ ] Keep `weread` unsupported until authorisation, protocol freeze and acceptance.
+- [ ] Deployment-level setup and acceptance for the production SecretStore, proxy provider, object storage and browser runtime.
+- [ ] Optional machine-readable OpenAPI for the delivery API (`docs/api/openapi-delivery.yaml`).
+- [ ] Wire up environment-based administrator bootstrap (`SIGNAL_BOOTSTRAP_*`).
+- [ ] Add regression tests with redacted fixtures as platform DOM/protocols change.
+
+The system is deliberately single-tenant with a single administrator. Multi-user auditing would be a separate product upgrade, not hidden roles.
+
+## Documentation
+
+The detailed docs are in Chinese:
+
+- [AGENTS.md](AGENTS.md): developer onboarding, module map, rules and workflow
+- [docs/PRD.md](docs/PRD.md): product requirements
+- [docs/TECHNICAL_SOLUTION.md](docs/TECHNICAL_SOLUTION.md): technical design
+- [docs/BACKEND_MODULES.md](docs/BACKEND_MODULES.md): backend modules
+- [docs/DATABASE_DESIGN.md](docs/DATABASE_DESIGN.md): database design
+- [docs/api/OpenAPI与契约冻结.md](docs/api/OpenAPI与契约冻结.md): API contract
+- [docs/api/错误码表.md](docs/api/错误码表.md): error codes
+- [docs/部署说明.md](docs/部署说明.md): deployment
+
+## Contributing
+
+Issues and pull requests are welcome. Please read [CONTRIBUTING.md](CONTRIBUTING.md) first. In short: keep the compliance boundaries, add migrations instead of editing applied ones, keep memory and PostgreSQL repositories consistent, test with fakes and fixtures only, and never commit credentials or real platform responses.
+
+## License
+
+Released under the [MIT License](LICENSE).
+
+> `Cargo.toml` currently declares `license = "MIT OR Apache-2.0"` in its workspace metadata. If dual licensing is intended, add the Apache-2.0 text and keep the metadata consistent.

@@ -1,0 +1,109 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="760" viewBox="0 0 1200 760" role="img" aria-labelledby="t d">
+<title id="t">Aero Signal architecture overview</title>
+<desc id="d">Clients call the Axum HTTP API; application services, domain and repositories run alongside the job pipeline and worker; adapter crates wrap connectors, capture, OCR and secrets; PostgreSQL, Redis, S3 and an optional CDP browser form the infrastructure.</desc>
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<style>
+  .panel{fill:#f8fafc;stroke:#cbd5e1;stroke-width:1.5}
+  .h1{font:700 26px -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;fill:#0f172a}
+  .h2{font:400 14px -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;fill:#475569}
+  .lane{font:700 12px -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;fill:#64748b;letter-spacing:.12em}
+  .bt{font:700 15px -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;fill:#0f172a}
+  .bs{font:400 12.5px -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;fill:#334155}
+  .mono{font:500 12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#334155}
+  .lbl{font:600 11.5px -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;fill:#475569}
+  .box{stroke-width:1.6}
+  .k0{fill:#e0f2fe;stroke:#0284c7} .k1{fill:#dcfce7;stroke:#16a34a}
+  .k2{fill:#ede9fe;stroke:#7c3aed} .k3{fill:#fef3c7;stroke:#d97706}
+  .k4{fill:#ffe4e6;stroke:#e11d48} .k5{fill:#f1f5f9;stroke:#64748b}
+  .grp{fill:none;stroke:#94a3b8;stroke-width:1.2;stroke-dasharray:6 5}
+  .ln{stroke:#64748b;stroke-width:1.8;fill:none}
+  .lnd{stroke:#64748b;stroke-width:1.5;fill:none;stroke-dasharray:5 4}
+  .ah{fill:#64748b}
+  @media (prefers-color-scheme: dark){
+    .panel{fill:#0d1117;stroke:#30363d}
+    .h1,.bt{fill:#e6edf3} .h2,.lbl{fill:#9da7b3} .lane{fill:#8b949e}
+    .bs,.mono{fill:#c9d1d9}
+    .k0{fill:#0c2d48;stroke:#38bdf8} .k1{fill:#0f2e1c;stroke:#4ade80}
+    .k2{fill:#251a47;stroke:#a78bfa} .k3{fill:#3a2a0a;stroke:#fbbf24}
+    .k4{fill:#3d0f1c;stroke:#fb7185} .k5{fill:#161b22;stroke:#8b949e}
+    .grp{stroke:#484f58} .ln,.lnd{stroke:#8b949e} .ah{fill:#8b949e}
+  }
+</style>
+<rect class="panel" x="1" y="1" width="1198" height="758" rx="18"/>
+<text class="h1" x="36" y="52" text-anchor="start">Aero Signal — Architecture Overview</text>
+<text class="h2" x="36" y="78" text-anchor="start">Two Rust binaries share one composition root (service/src/app.rs); dependencies flow api → service → domain/repository → adapter/job</text>
+<text class="lane" x="36" y="118" text-anchor="start">CLIENTS</text>
+<rect class="box k0" x="36" y="128" width="520" height="66" rx="10"/>
+<text class="bt" x="50" y="152">Vue 3 Admin  (web/)</text>
+<text class="bs" x="50" y="172">Single administrator session · Vite dev proxy /api → :8080</text>
+<rect class="box k0" x="644" y="128" width="520" height="66" rx="10"/>
+<text class="bt" x="658" y="152">Downstream consumers</text>
+<text class="bs" x="658" y="172">Delivery-group Bearer tokens with scopes (articles / sources / health)</text>
+<text class="lane" x="36" y="232" text-anchor="start">SIGNAL-SERVICE  (HTTP, Axum)</text>
+<rect class="box k1" x="36" y="242" width="1128" height="66" rx="10"/>
+<text class="bt" x="50" y="266">HTTP API</text>
+<text class="bs" x="50" y="286">/api/admin/*  admin routes   ·   /api/*  delivery routes   ·   /healthz   ·   auth, DTO validation, Idempotency-Key, error mapping</text>
+<path class="ln" d="M296 194 L296 240" marker-end="url(#a)"/>
+<path class="ln" d="M904 194 L904 240" marker-end="url(#a)"/>
+<text class="lane" x="36" y="346" text-anchor="start">APPLICATION CORE</text>
+<rect class="box k1" x="36" y="356" width="360" height="104" rx="10"/>
+<text class="bt" x="50" y="380">Application services</text>
+<text class="bs" x="50" y="400">service/src/service/</text>
+<text class="bs" x="50" y="417">QR login · source validation · capture</text>
+<text class="bs" x="50" y="434">heartbeat · preflight · plan · revision</text>
+<rect class="box k1" x="420" y="356" width="360" height="104" rx="10"/>
+<text class="bt" x="434" y="380">Domain + Repository</text>
+<text class="bs" x="434" y="400">service/src/domain/, repository/</text>
+<text class="bs" x="434" y="417">state transitions as domain methods</text>
+<text class="bs" x="434" y="434">memory and PostgreSQL implementations</text>
+<rect class="box k2" x="804" y="356" width="360" height="104" rx="10"/>
+<text class="bt" x="818" y="380">job-pipeline  +  signal-worker</text>
+<text class="bs" x="818" y="400">durable jobs: lease · retry · cancel</text>
+<text class="bs" x="818" y="417">timeouts · progress · safe context</text>
+<text class="bs" x="818" y="434">scheduler: 07:30 preflight / 08:00 plan</text>
+<path class="ln" d="M216 308 L216 354" marker-end="url(#a)"/>
+<path class="ln" d="M600 308 L600 354" marker-end="url(#a)"/>
+<path class="ln" d="M984 308 L984 354" marker-end="url(#a)"/>
+<path class="ln" d="M396 408 L418 408" marker-end="url(#a)"/>
+<path class="ln" d="M804 408 L782 408" marker-end="url(#a)"/>
+<text class="lane" x="36" y="500" text-anchor="start">ADAPTERS</text>
+<rect class="box k3" x="36" y="508" width="264" height="112" rx="10"/>
+<text class="bt" x="50" y="532">platform-connectors</text>
+<text class="bs" x="50" y="552">mp_admin (authorised accounts)</text>
+<text class="bs" x="50" y="569">fake · weread = unsupported</text>
+<text class="bs" x="50" y="586">capability registry/selector</text>
+<rect class="box k3" x="324" y="508" width="264" height="112" rx="10"/>
+<text class="bt" x="338" y="532">crawler-capture</text>
+<text class="bs" x="338" y="552">canonical URL · SSRF guard</text>
+<text class="bs" x="338" y="569">bounded HTTP · optional CDP</text>
+<text class="bs" x="338" y="586">extractor → Markdown · assets</text>
+<rect class="box k3" x="612" y="508" width="264" height="112" rx="10"/>
+<text class="bt" x="626" y="532">provider-hub</text>
+<text class="bs" x="626" y="552">OCR provider trait</text>
+<text class="bs" x="626" y="569">Fake OCR only (dev/test)</text>
+<text class="bs" x="626" y="586">real provider: not yet</text>
+<rect class="box k3" x="900" y="508" width="264" height="112" rx="10"/>
+<text class="bt" x="914" y="532">service adapters</text>
+<text class="bs" x="914" y="552">service/src/adapters/</text>
+<text class="bs" x="914" y="569">SecretStore · QR tickets (Redis)</text>
+<text class="bs" x="914" y="586">proxy provider adapters</text>
+<path class="ln" d="M600 460 L600 480 L168 480 L168 506" marker-end="url(#a)"/>
+<path class="ln" d="M456 480 L456 506" marker-end="url(#a)"/>
+<path class="ln" d="M744 480 L744 506" marker-end="url(#a)"/>
+<path class="ln" d="M600 480 L1032 480 L1032 506" marker-end="url(#a)"/>
+<text class="lane" x="36" y="656" text-anchor="start">INFRASTRUCTURE</text>
+<rect class="box k5" x="36" y="666" width="264" height="62" rx="10"/>
+<text class="bt" x="50" y="690">PostgreSQL</text>
+<text class="bs" x="50" y="710">SQLx migrations, jobs, articles</text>
+<rect class="box k5" x="324" y="666" width="264" height="62" rx="10"/>
+<text class="bt" x="338" y="690">Redis</text>
+<text class="bs" x="338" y="710">QR tickets · key prefix signal:</text>
+<rect class="box k5" x="612" y="666" width="264" height="62" rx="10"/>
+<text class="bt" x="626" y="690">S3 / MinIO</text>
+<text class="bs" x="626" y="710">assets, hash-deduplicated</text>
+<rect class="box k5" x="900" y="666" width="264" height="62" rx="10"/>
+<text class="bt" x="914" y="690">CDP browser (optional)</text>
+<text class="bs" x="914" y="710">CLOAKBROWSER_CDP_URL</text>
+</svg>

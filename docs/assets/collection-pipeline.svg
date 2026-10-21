@@ -1,0 +1,153 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="820" viewBox="0 0 1200 820" role="img" aria-labelledby="t d">
+<title id="t">Collection pipeline and job flow</title>
+<desc id="d">Onboarding validates up to three articles; the daily scheduler runs preflight, snapshot, plan and fetch_source; detail jobs fetch, normalize, store assets and atomically commit revisions with change events and outbox rows; follow-up jobs retry assets, run OCR and update heartbeat.</desc>
+<defs>
+<marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ah" d="M0 0L10 5L0 10z"/></marker>
+</defs>
+<style>
+  .panel{fill:#f8fafc;stroke:#cbd5e1;stroke-width:1.5}
+  .h1{font:700 26px -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;fill:#0f172a}
+  .h2{font:400 14px -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;fill:#475569}
+  .lane{font:700 12px -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;fill:#64748b;letter-spacing:.12em}
+  .bt{font:700 15px -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;fill:#0f172a}
+  .bs{font:400 12.5px -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;fill:#334155}
+  .mono{font:500 12px ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;fill:#334155}
+  .lbl{font:600 11.5px -apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;fill:#475569}
+  .box{stroke-width:1.6}
+  .k0{fill:#e0f2fe;stroke:#0284c7} .k1{fill:#dcfce7;stroke:#16a34a}
+  .k2{fill:#ede9fe;stroke:#7c3aed} .k3{fill:#fef3c7;stroke:#d97706}
+  .k4{fill:#ffe4e6;stroke:#e11d48} .k5{fill:#f1f5f9;stroke:#64748b}
+  .grp{fill:none;stroke:#94a3b8;stroke-width:1.2;stroke-dasharray:6 5}
+  .ln{stroke:#64748b;stroke-width:1.8;fill:none}
+  .lnd{stroke:#64748b;stroke-width:1.5;fill:none;stroke-dasharray:5 4}
+  .ah{fill:#64748b}
+  @media (prefers-color-scheme: dark){
+    .panel{fill:#0d1117;stroke:#30363d}
+    .h1,.bt{fill:#e6edf3} .h2,.lbl{fill:#9da7b3} .lane{fill:#8b949e}
+    .bs,.mono{fill:#c9d1d9}
+    .k0{fill:#0c2d48;stroke:#38bdf8} .k1{fill:#0f2e1c;stroke:#4ade80}
+    .k2{fill:#251a47;stroke:#a78bfa} .k3{fill:#3a2a0a;stroke:#fbbf24}
+    .k4{fill:#3d0f1c;stroke:#fb7185} .k5{fill:#161b22;stroke:#8b949e}
+    .grp{stroke:#484f58} .ln,.lnd{stroke:#8b949e} .ah{fill:#8b949e}
+  }
+</style>
+<rect class="panel" x="1" y="1" width="1198" height="818" rx="18"/>
+<text class="h1" x="36" y="52" text-anchor="start">Collection Pipeline &amp; Job Flow</text>
+<text class="h2" x="36" y="78" text-anchor="start">Every long-running step is a durable job with an idempotency key; HTTP handlers only enqueue and report progress</text>
+<text class="lane" x="36" y="120" text-anchor="start">A · ADD A MONITORED ACCOUNT</text>
+<rect class="box k0" x="36" y="132" width="208" height="86" rx="10"/>
+<text class="bt" x="50" y="156">POST /sources/validate</text>
+<text class="bs" x="50" y="176">direct WeChat URL or</text>
+<text class="bs" x="50" y="193">bounded short-link resolve</text>
+<rect class="box k2" x="266" y="132" width="208" height="86" rx="10"/>
+<text class="bt" x="280" y="156">source_validation</text>
+<text class="bs" x="280" y="176">canonical URL, strip</text>
+<text class="bs" x="280" y="193">uin/key/pass_ticket…</text>
+<path class="ln" d="M244 175 L264 175" marker-end="url(#a)"/>
+<rect class="box k2" x="496" y="132" width="208" height="86" rx="10"/>
+<text class="bt" x="510" y="156">fetch_article_detail ×≤3</text>
+<text class="bs" x="510" y="176">latest distinct</text>
+<text class="bs" x="510" y="193">candidate articles</text>
+<path class="ln" d="M474 175 L494 175" marker-end="url(#a)"/>
+<rect class="box k2" x="726" y="132" width="208" height="86" rx="10"/>
+<text class="bt" x="740" y="156">Aggregate result</text>
+<text class="bs" x="740" y="176">source_validation_aggregate</text>
+<text class="bs" x="740" y="193">≥ 1 success to confirm</text>
+<path class="ln" d="M704 175 L724 175" marker-end="url(#a)"/>
+<rect class="box k0" x="956" y="132" width="208" height="86" rx="10"/>
+<text class="bt" x="970" y="156">POST /sources</text>
+<text class="bs" x="970" y="176">confirm rules: level,</text>
+<text class="bs" x="970" y="193">window, first heartbeat</text>
+<path class="ln" d="M934 175 L954 175" marker-end="url(#a)"/>
+<text class="lane" x="36" y="266" text-anchor="start">B · DAILY SCHEDULE  (signal-worker scheduler, Asia/Shanghai)</text>
+<rect class="box k2" x="36" y="278" width="208" height="86" rx="10"/>
+<text class="bt" x="50" y="302">07:30  daily_preflight</text>
+<text class="bs" x="50" y="322">probe connectors, egress,</text>
+<text class="bs" x="50" y="339">queue, object store</text>
+<rect class="box k5" x="266" y="278" width="208" height="86" rx="10"/>
+<text class="bt" x="280" y="302">health snapshot</text>
+<text class="bs" x="280" y="322">immutable, per day</text>
+<text class="bs" x="280" y="339">published before 07:45</text>
+<path class="ln" d="M244 321 L264 321" marker-end="url(#a)"/>
+<rect class="box k2" x="496" y="278" width="208" height="86" rx="10"/>
+<text class="bt" x="510" y="302">08:00  build_daily_plan</text>
+<text class="bs" x="510" y="322">filter by snapshot, level,</text>
+<text class="bs" x="510" y="339">heartbeat, capacity</text>
+<path class="ln" d="M474 321 L494 321" marker-end="url(#a)"/>
+<rect class="box k2" x="726" y="278" width="208" height="86" rx="10"/>
+<text class="bt" x="740" y="302">fetch_source</text>
+<text class="bs" x="740" y="322">re-check paused / L4,</text>
+<text class="bs" x="740" y="339">request budget</text>
+<path class="ln" d="M704 321 L724 321" marker-end="url(#a)"/>
+<rect class="box k2" x="956" y="278" width="208" height="86" rx="10"/>
+<text class="bt" x="970" y="302">connector discovery</text>
+<text class="bs" x="970" y="322">bounded pagination,</text>
+<text class="bs" x="970" y="339">strong-identity dedupe</text>
+<path class="ln" d="M934 321 L954 321" marker-end="url(#a)"/>
+<text class="lbl" x="1060" y="384" text-anchor="middle">only unseen candidates</text>
+<path class="ln" d="M1060 364 L1060 412" marker-end="url(#a)"/>
+<text class="lane" x="36" y="412" text-anchor="start">C · ARTICLE DETAIL  (fetch_article_detail · also refetch_article / history_backfill page-by-page)</text>
+<rect class="box k3" x="956" y="424" width="208" height="86" rx="10"/>
+<text class="bt" x="970" y="448">HTTP-first fetch</text>
+<text class="bs" x="970" y="468">SSRF guard per hop,</text>
+<text class="bs" x="970" y="485">size + time limits</text>
+<rect class="box k3" x="726" y="424" width="208" height="86" rx="10"/>
+<text class="bt" x="740" y="448">CDP render (fallback)</text>
+<text class="bs" x="740" y="468">only when lazy content</text>
+<text class="bs" x="740" y="485">is incomplete</text>
+<rect class="box k3" x="496" y="424" width="208" height="86" rx="10"/>
+<text class="bt" x="510" y="448">Normalize</text>
+<text class="bs" x="510" y="468">DOM allow-list → semantic</text>
+<text class="bs" x="510" y="485">HTML + Markdown</text>
+<rect class="box k3" x="266" y="424" width="208" height="86" rx="10"/>
+<text class="bt" x="280" y="448">Assets</text>
+<text class="bs" x="280" y="468">classify images, download,</text>
+<text class="bs" x="280" y="485">store by content hash</text>
+<rect class="box k1" x="36" y="424" width="208" height="86" rx="10"/>
+<text class="bt" x="50" y="448">Atomic commit</text>
+<text class="bs" x="50" y="468">article · assets · revision</text>
+<text class="bs" x="50" y="485">change event · outbox</text>
+<path class="ln" d="M1060 414 L1060 422" marker-end="url(#a)"/>
+<path class="ln" d="M956 467 L936 467" marker-end="url(#a)"/>
+<path class="ln" d="M726 467 L706 467" marker-end="url(#a)"/>
+<path class="ln" d="M496 467 L476 467" marker-end="url(#a)"/>
+<path class="ln" d="M266 467 L246 467" marker-end="url(#a)"/>
+<text class="lane" x="36" y="558" text-anchor="start">D · FOLLOW-UP &amp; MAINTENANCE</text>
+<path class="ln" d="M220 510 L220 568" marker-end="url(#a)"/>
+<rect class="box k2" x="36" y="570" width="270" height="70" rx="10"/>
+<text class="bt" x="50" y="594">retry_article_assets</text>
+<text class="bs" x="50" y="614">failed media only; body is kept</text>
+<rect class="box k2" x="330" y="570" width="270" height="70" rx="10"/>
+<text class="bt" x="344" y="594">ocr_article_image</text>
+<text class="bs" x="344" y="614">OCR text → Markdown anchors</text>
+<rect class="box k5" x="624" y="570" width="270" height="70" rx="10"/>
+<text class="bt" x="638" y="594">heartbeat update (in-process)</text>
+<text class="bs" x="638" y="614">event-key idempotent; found_new</text>
+<rect class="box k5" x="918" y="570" width="246" height="70" rx="10"/>
+<text class="bt" x="932" y="594">retention_cleanup</text>
+<text class="bs" x="932" y="614">separate job, per policy</text>
+<text class="lane" x="36" y="684" text-anchor="start">JOB STATES  (crates/job-pipeline)</text>
+<rect class="box k5" x="36" y="696" width="130" height="40" rx="10"/>
+<text class="bt" x="101.0" y="720" text-anchor="middle">queued</text>
+<rect class="box k2" x="206" y="696" width="130" height="40" rx="10"/>
+<text class="bt" x="271.0" y="720" text-anchor="middle">running</text>
+<rect class="box k1" x="376" y="696" width="130" height="40" rx="10"/>
+<text class="bt" x="441.0" y="720" text-anchor="middle">succeeded</text>
+<rect class="box k3" x="546" y="696" width="130" height="40" rx="10"/>
+<text class="bt" x="611.0" y="720" text-anchor="middle">retry_wait</text>
+<rect class="box k3" x="716" y="696" width="130" height="40" rx="10"/>
+<text class="bt" x="781.0" y="720" text-anchor="middle">needs_action</text>
+<rect class="box k4" x="886" y="696" width="130" height="40" rx="10"/>
+<text class="bt" x="951.0" y="720" text-anchor="middle">failed</text>
+<rect class="box k4" x="1034" y="696" width="130" height="40" rx="10"/>
+<text class="bt" x="1099.0" y="720" text-anchor="middle">dead_letter</text>
+<rect class="box k5" x="206" y="756" width="130" height="40" rx="10"/>
+<text class="bt" x="271.0" y="780" text-anchor="middle">cancelling</text>
+<rect class="box k5" x="376" y="756" width="130" height="40" rx="10"/>
+<text class="bt" x="441.0" y="780" text-anchor="middle">cancelled</text>
+<path class="ln" d="M166 716 L204 716" marker-end="url(#a)"/>
+<path class="ln" d="M336 716 L374 716" marker-end="url(#a)"/>
+<path class="ln" d="M271 736 L271 754" marker-end="url(#a)"/>
+<path class="ln" d="M336 776 L374 776" marker-end="url(#a)"/>
+<text class="h2" x="1164" y="790" text-anchor="end">Transition rules live in crates/job-pipeline (types.rs, worker.rs)</text>
+</svg>
