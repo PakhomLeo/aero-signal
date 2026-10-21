@@ -291,11 +291,12 @@ Memory/Fake 只允许 development/test 环境。
 Copy-Item .env.example .env
 ./scripts/init-dev-resources.ps1
 $env:SIGNAL_STORE = "postgres"
+$env:SIGNAL_SECRET_STORE_PATH = "./data/secrets"   # postgres 模式必填，无默认值
 cargo run -p signal-service --bin signal-service
 cargo run -p signal-service --bin signal-worker
 ```
 
-应用启动时运行 SQLx migrations。生产环境必须配置真实 SecretStore、对象存储和非 Fake Provider，并更换所有本地默认凭据。
+`SIGNAL_SECRET_STORE_PATH`、`REDIS_URL` 和 `S3_ENDPOINT` 在 postgres 模式下没有默认值，缺失时启动报 `config.*_required`。应用启动时运行 SQLx migrations。生产环境必须配置真实 SecretStore、对象存储和非 Fake Provider，并更换所有本地默认凭据。
 
 ### 9.3 前端
 
