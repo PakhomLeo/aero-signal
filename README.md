@@ -110,7 +110,7 @@ The Vue admin console (shown on the *Today's overview* page of a fresh local ins
 │  └─ provider-hub/            # OCR provider trait + fake provider
 ├─ web/                        # Vue 3 admin UI
 ├─ migrations/                 # append-only SQLx migrations (applied automatically on start)
-├─ scripts/                    # PowerShell helpers for local resources and fake smoke tests
+├─ scripts/                    # PowerShell helpers (plus a stdlib-only Python bucket script) for local resources and fake smoke tests
 ├─ docs/                       # PRD, technical design, modules, database, API, deployment (Chinese)
 ├─ AGENTS.md                   # developer / agent onboarding guide (Chinese)
 └─ SIGNAL_REPAIR_LOOP_PLAN.md  # record of the completed capture-pipeline repair work (Chinese)
@@ -171,7 +171,7 @@ mc alias set local http://127.0.0.1:9000 "$S3_ACCESS_KEY" "$S3_SECRET_KEY"
 mc mb --ignore-existing local/aero-signal-dev
 ```
 
-On Windows with Podman, `scripts/init-dev-resources.ps1` creates the database and bucket inside existing containers named `aero-postgres` and `aero-minio`.
+On Windows with Podman, `scripts/init-dev-resources.ps1` creates the database and bucket inside existing containers named `aero-postgres` and `aero-minio`. It expects the `aero` role and an `aero_base` database to exist already.
 
 **Run the API and the worker** in two terminals:
 
@@ -182,7 +182,7 @@ cargo run -p signal-service --bin signal-worker
 
 In PostgreSQL mode, `SIGNAL_EMBED_WORKER` is ignored, so the separate worker is required.
 
-**Create the administrator** (once). The password must be 10–128 characters and contain letters and digits. There are two options:
+**Create the administrator** (once). The password must be 10–128 characters, contain letters and digits, and not be a common password. There are two options:
 
 - *Automatic (recommended):* set `SIGNAL_BOOTSTRAP_USERNAME` and `SIGNAL_BOOTSTRAP_PASSWORD` before starting `signal-service`. On start-up it creates the administrator if none exists, and skips this step if one already exists. The worker does not bootstrap.
 - *Over HTTP:* set `SIGNAL_BOOTSTRAP_TOKEN` to a long random value, restart `signal-service`, then call:
@@ -227,7 +227,7 @@ All settings are environment variables (a `.env` file in the working directory i
 | `S3_ACCESS_KEY` / `S3_SECRET_KEY` | – | Object storage credentials; required when `S3_ENDPOINT` is set. |
 | `S3_BUCKET` | `aero-signal-dev` | Asset bucket. |
 | `BROWSER_CDP_URL` | – | CDP endpoint of a Chromium-compatible browser for lazy-load rendering, e.g. `http://127.0.0.1:9222`. Optional in development, required in production. |
-| `SIGNAL_MP_ADMIN_PROTOCOL` | off | `1` / `true` / `yes` marks the real `mp_admin` QR-login and published-list protocol as ready; otherwise `mp_admin` reports itself as unsupported. The `fake` connector is registered in every non-production environment. |
+| `SIGNAL_MP_ADMIN_PROTOCOL` | off | `1` / `true` / `yes` marks the real `mp_admin` QR-login and published-list protocol as ready; otherwise `mp_admin` reports itself as unsupported. Production refuses to start without it (`config.connector_required`). The `fake` connector is registered in every non-production environment. |
 | `SIGNAL_MP_ADMIN_USER_AGENT` | built-in desktop Chrome 123 UA | `User-Agent` sent by `mp_admin` protocol requests. Empty or invalid header values fall back to the default (`DEFAULT_MP_ADMIN_USER_AGENT` in `crates/platform-connectors/src/mp_admin/protocol.rs`). |
 | `SIGNAL_OCR_PROVIDER` | – | Only `fake` exists today; set `fake` to enable fake OCR outside production. Production refuses to start (`config.ocr_provider_not_implemented`) until a real provider is added. |
 | `SIGNAL_PRODUCT` | `signal` | Product name reported by `/healthz`. |
@@ -239,7 +239,7 @@ Scheduling uses the timezone in `system_settings` (default `Asia/Shanghai`). Run
 
 ## API overview
 
-All error responses use `{"error":{"code":"module.reason_code","message":…,"details":…,"trace_id":…}}`. Error codes are listed in [`docs/api/错误码表.md`](docs/api/错误码表.md). Write requests accept an `Idempotency-Key` header.
+All error responses use `{"error":{"code":"module.reason_code","message":…,"details":…,"trace_id":…}}`. Error codes are listed in [`docs/api/错误码表.md`](docs/api/错误码表.md). Write operations that enqueue jobs or create resources are de-duplicated through job idempotency keys and business unique keys. An `Idempotency-Key` middleware exists in `crates/server-core`, but it is not mounted on any route yet, so the header is currently ignored.
 
 ### Admin API: `/api/admin` (administrator session, `Authorization: Bearer <session token>` from `/auth/login`)
 
@@ -306,7 +306,7 @@ These rules are part of the product's design, not optional settings. Contributio
 
 ## Project status and roadmap
 
-**Status (per `AGENTS.md`, 2026-07-17):** the capture-pipeline repair plan is complete and was verified locally. That work covered candidate metadata, old-article detection, short-link safety, incremental pagination, history backfill, semantic body extraction, partial asset success, structured errors and multi-dimensional rate limiting.
+**Status (per `AGENTS.md`, 2026-07-17):** the capture-pipeline repair plan is complete and was verified locally. That work covered candidate metadata, old-article detection, short-link safety, incremental pagination, history backfill, semantic body extraction, partial asset success, structured errors and multi-dimensional rate limiting. Details: [`SIGNAL_REPAIR_LOOP_PLAN.md` §14](SIGNAL_REPAIR_LOOP_PLAN.md#14-执行结果2026-07-17) (Chinese).
 
 **Known limitations and next steps** (from `AGENTS.md` §13 and `docs/`):
 
